@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSERI 성과 등록 프로토타입 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#F6F6F2; --surface:#FFFFFF; --surface-2:#EFEFE9;
+    --ink:#1C1F24; --ink-muted:#6B7280; --border:#E1E1DA;
+    --primary:#1F4E5F; --primary-dark:#153746; --primary-tint:#E7EFF1;
+    --sage:#6B8F71; --sage-tint:#EDF3EE;
+    --gold:#B8863B; --gold-tint:#F7EFDF;
+    --danger:#B3432F; --danger-tint:#FBEAE6;
+    --purple:#6E5A9E; --purple-tint:#EFEBF7;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',sans-serif;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .app{display:grid;grid-template-columns:230px 1fr;min-height:100vh;}
+  .sidebar{background:var(--primary-dark);color:#F1F4F5;padding:26px 18px;display:flex;flex-direction:column;gap:24px;}
+  .brand{font-family:'Noto Serif KR',serif;font-weight:700;font-size:17px;line-height:1.4;}
+  .brand small{display:block;font-family:'Noto Sans KR',sans-serif;font-weight:400;font-size:11px;color:#9FB3BB;margin-top:4px;}
+  .nav{display:flex;flex-direction:column;gap:3px;}
+  .nav button{all:unset;cursor:pointer;padding:9px 11px;border-radius:8px;font-size:13.5px;font-weight:500;color:#CBD8DB;display:flex;align-items:center;gap:9px;transition:background .15s;}
+  .nav button:hover{background:#ffffff10;}
+  .nav button.active{background:#ffffff14;color:#fff;}
+  .nav .dot{width:6px;height:6px;border-radius:50%;background:#5A7580;}
+  .nav button.active .dot{background:var(--gold);}
+  .whoami{margin-top:auto;border-top:1px solid #ffffff1f;padding-top:16px;font-size:11.5px;color:#9FB3BB;line-height:1.7;}
+  .whoami b{color:#fff;display:block;font-size:13px;margin-bottom:2px;}
+  .main{padding:32px 40px;max-width:1040px;}
+  .page-head{margin-bottom:22px;}
+  .page-head h1{font-family:'Noto Serif KR',serif;font-size:22px;margin:0 0 5px;}
+  .page-head p{margin:0;color:var(--ink-muted);font-size:13px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;}
+  .type-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px;}
+  .type-tab{all:unset;cursor:pointer;padding:8px 13px;border-radius:999px;font-size:12.5px;font-weight:500;border:1px solid var(--border);color:var(--ink-muted);background:var(--surface);transition:all .15s;}
+  .type-tab:hover{border-color:var(--primary);color:var(--primary);}
+  .type-tab.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .section-title{font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--primary);text-transform:uppercase;margin:22px 0 12px;padding-top:14px;border-top:1px solid var(--border);}
+  .section-title:first-of-type{border-top:none;padding-top:0;margin-top:4px;}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field.full{grid-column:1/-1;}
+  .field label{font-size:12px;font-weight:600;color:var(--ink);}
+  .field label .req{color:var(--danger);margin-left:2px;}
+  .field .hint{font-size:11px;color:var(--ink-muted);margin-top:-1px;}
+  input[type=text],input[type=date],input[type=number],select,textarea{
+    font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:#FCFCFA;color:var(--ink);outline:none;transition:border-color .15s,background .15s;width:100%;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--primary);background:#fff;}
+  input.invalid,select.invalid{border-color:var(--danger);background:var(--danger-tint);}
+  input.prefill{color:#9AA0A6;font-style:italic;}
+  input.prefill:focus{color:var(--ink);font-style:normal;}
+  textarea{min-height:64px;resize:vertical;font-family:inherit;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .checkbox-row{display:flex;align-items:center;gap:7px;font-size:13px;}
+  .checkbox-row input{width:14px;height:14px;accent-color:var(--primary);}
+  .yn-toggle{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;width:fit-content;}
+  .yn-toggle button{all:unset;cursor:pointer;padding:7px 16px;font-size:12.5px;font-weight:600;color:var(--ink-muted);}
+  .yn-toggle button.on{background:var(--sage-tint);color:var(--primary-dark);}
+  .yn-toggle button+button{border-left:1px solid var(--border);}
+
+  .chip-group{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+  .chip{display:flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--border);border-radius:999px;font-size:12px;cursor:pointer;background:#FCFCFA;color:var(--ink-muted);user-select:none;}
+  .chip input{accent-color:var(--sage);}
+  .chip.checked{background:var(--sage-tint);border-color:var(--sage);color:var(--primary-dark);font-weight:600;}
+  .chip.special{background:var(--purple-tint);border-color:var(--purple);color:#3E3266;}
+  .other-count{width:56px !important;padding:5px 8px !important;font-size:12px !important;}
+
+  /* name-tag list */
+  .nametoggle{border:1px dashed var(--border);border-radius:8px;padding:10px;background:#FBFBF9;}
+  .nametoggle-input-row{display:flex;gap:8px;margin-bottom:8px;}
+  .nametoggle-input-row input{flex:1;}
+  .nametoggle-input-row button{all:unset;cursor:pointer;padding:8px 14px;background:var(--primary);color:#fff;border-radius:7px;font-size:12.5px;font-weight:600;white-space:nowrap;}
+  .nametoggle-list{display:flex;flex-direction:column;gap:6px;}
+  .nametoggle-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:7px;padding:6px 8px 6px 12px;}
+  .nametoggle-row .nm{font-size:13px;font-weight:500;}
+  .nametoggle-row .yn-toggle button{padding:5px 11px;font-size:11.5px;}
+  .icon-btn{all:unset;cursor:pointer;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ink-muted);font-size:14px;}
+  .icon-btn:hover{background:var(--surface-2);color:var(--ink);}
+  .nametoggle-empty{font-size:11.5px;color:var(--ink-muted);padding:6px 2px;}
+
+  /* upload slots */
+  .upload-slot{display:grid;grid-template-columns:1fr 170px auto;gap:8px;align-items:center;background:#FBFBF9;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;}
+  .upload-slot input[type=file]{font-size:11.5px;}
+  .add-slot-btn{all:unset;cursor:pointer;font-size:12px;font-weight:600;color:var(--primary);display:inline-flex;align-items:center;gap:6px;margin-top:2px;}
+  .pdf-note{font-size:11px;color:var(--ink-muted);margin-top:6px;}
+
+  .filename-preview{margin-top:20px;border-radius:10px;padding:14px 16px;background:var(--gold-tint);border:1px solid #E4CFA1;display:flex;flex-direction:column;gap:5px;}
+  .filename-preview .fp-label{font-size:10.5px;font-weight:700;letter-spacing:.04em;color:var(--gold);text-transform:uppercase;}
+  .filename-preview .fp-value{font-size:13.5px;font-weight:600;color:#5B4419;word-break:break-all;}
+  .filename-preview .fp-hint{font-size:11px;color:#8A6C33;}
+
+  .calc-box{display:flex;gap:14px;margin-top:16px;}
+  .calc-chip{flex:1;background:var(--primary-tint);border-radius:8px;padding:10px 12px;}
+  .calc-chip .cl{font-size:10.5px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.03em;}
+  .calc-chip .cv{font-size:17px;font-weight:700;color:var(--primary-dark);font-family:'IBM Plex Mono',monospace;margin-top:2px;}
+
+  .submit-row{margin-top:22px;display:flex;justify-content:flex-end;gap:10px;}
+  .btn{all:unset;cursor:pointer;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-ghost{color:var(--ink-muted);}
+  .btn-ghost:hover{color:var(--ink);}
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--primary-dark);color:#fff;padding:12px 17px;border-radius:8px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:20;max-width:320px;}
+  .toast.show{opacity:1;transform:translateY(0);}
+
+  .filters{display:flex;gap:9px;margin-bottom:16px;flex-wrap:wrap;}
+  .filters select,.filters input{font-family:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:#fff;}
+  .filters input{flex:1;min-width:170px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{text-align:left;font-size:11px;color:var(--ink-muted);font-weight:600;padding:0 10px 9px;border-bottom:1px solid var(--border);}
+  tbody td{padding:11px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tbody tr:hover{background:#FAFAF7;}
+  .tag{display:inline-block;padding:3px 8px;border-radius:999px;font-size:10.5px;font-weight:600;background:var(--primary-tint);color:var(--primary-dark);}
+  .biz-tag{display:inline-block;padding:2px 7px;border-radius:999px;font-size:10px;background:var(--sage-tint);color:#3E5C43;margin:2px 3px 0 0;}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--ink-muted);}
+  .empty-state .glyph{font-size:26px;margin-bottom:8px;}
+  .count-badge{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-muted);margin-bottom:12px;}
+
+  /* guide page */
+  .guide-tabs{display:flex;gap:8px;margin-bottom:18px;}
+  .guide-tab{all:unset;cursor:pointer;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink-muted);border:1px solid var(--border);}
+  .guide-tab.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .guide-body h3{font-size:14px;color:var(--primary-dark);margin:22px 0 8px;}
+  .guide-body h3:first-child{margin-top:0;}
+  .guide-body p{font-size:13px;line-height:1.7;margin:0 0 8px;}
+  .ack-block{background:#FBFBF9;border:1px dashed var(--border);border-radius:8px;padding:12px 14px;margin:10px 0 16px;font-size:12.5px;line-height:1.8;}
+  .ack-block b{color:var(--primary-dark);}
+  .guide-table{width:100%;border-collapse:collapse;font-size:12.5px;margin:0 0 18px;table-layout:fixed;}
+  .guide-table th{background:var(--primary-tint);color:var(--primary-dark);text-align:left;padding:8px 10px;font-size:11px;font-weight:700;border-bottom:1px solid var(--border);}
+  .guide-table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.65;word-break:keep-all;}
+  .guide-table td.num{color:var(--ink-muted);width:28px;font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .guide-table tr:last-child td{border-bottom:1px solid var(--border);}
+  .guide-table.narrow td:first-child, .guide-table.narrow th:first-child{width:130px;font-weight:600;color:var(--primary-dark);}
+</style>
+</head>
+<body>
+<div id="identify-gate" style="position:fixed;inset:0;background:#F6F6F2;z-index:50;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #E1E1DA;border-radius:12px;padding:36px 34px;max-width:360px;width:90%;text-align:center;">
+    <div style="font-family:'Noto Serif KR',serif;font-weight:700;font-size:18px;color:#1F4E5F;margin-bottom:6px;">CSERI 성과관리</div>
+    <p style="font-size:13px;color:#6B7280;margin:0 0 20px;">구성원명단에 등록된 이메일을 입력해주세요.</p>
+    <input type="text" id="gate-email" placeholder="you@sungshin.ac.kr" style="width:100%;padding:10px 12px;border:1px solid #E1E1DA;border-radius:7px;font-size:13.5px;margin-bottom:10px;">
+    <button id="gate-confirm" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:11px;background:#1F4E5F;color:#fff;border-radius:8px;font-size:13.5px;font-weight:600;text-align:center;">확인</button>
+    <p id="gate-error" style="display:none;color:#B3432F;font-size:12px;margin-top:10px;">구성원명단에 없는 이메일입니다. 관리자에게 등록을 요청해주세요.</p>
+  </div>
+</div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">CSERI 성과관리<small>융합보안공학연구소 · 프로토타입 v2</small></div>
+    <nav class="nav">
+      <button id="nav-guide"><span class="dot"></span>이용 안내</button>
+      <button id="nav-form" class="active"><span class="dot"></span>성과 등록</button>
+      <button id="nav-list"><span class="dot"></span>성과 목록</button>
+    </nav>
+    <div class="whoami"><b id="whoami-name">-</b><span id="whoami-degree"></span> · <a href="#" id="whoami-switch" style="color:#9FB3BB;text-decoration:underline;">계정 전환</a><br><span class="mono" style="font-size:10.5px" id="whoami-email"></span></div>
+  </aside>
+
+  <main class="main">
+    <section id="page-form">
+      <div class="page-head">
+        <h1>성과 등록</h1>
+        <p>유형을 선택하면 필요한 항목만 표시됩니다.</p>
+      </div>
+      <div class="card">
+        <div class="type-tabs" id="type-tabs"></div>
+        <div id="form-body"></div>
+        <div class="filename-preview" id="fp-box">
+          <span class="fp-label">자동 생성 파일명</span>
+          <span class="fp-value" id="fp-value">항목을 입력하면 파일명이 여기에 표시됩니다</span>
+          <span class="fp-hint" id="fp-hint"></span>
+        </div>
+        <div class="submit-row">
+          <button class="btn btn-ghost" id="reset-btn">초기화</button>
+          <button class="btn btn-primary" id="submit-btn">성과 등록</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-list" style="display:none">
+      <div class="page-head"><h1>성과 목록</h1><p>등록된 성과를 유형·사업별로 필터링하고 검색할 수 있습니다.</p></div>
+      <div class="card">
+        <div class="filters">
+          <select id="f-type"><option value="">전체 유형</option></select>
+          <select id="f-biz"><option value="">전체 사업</option></select>
+          <input id="f-search" type="text" placeholder="제목 · 작성자 검색">
+          <button class="btn btn-primary" id="download-btn" style="padding:8px 14px;font-size:12.5px;flex:none;white-space:nowrap;">⬇ 엑셀 다운로드</button>
+        </div>
+        <div class="count-badge" id="list-count"></div>
+        <div id="list-wrap"></div>
+      </div>
+    </section>
+
+    <section id="page-guide" style="display:none">
+      <div class="page-head"><h1>이용 안내</h1><p>성과 등록 방법과 사사표기 방법을 확인하세요.</p></div>
+      <div class="card">
+        <div class="guide-tabs">
+          <button class="guide-tab active" data-g="reg">성과 등록 방법</button>
+          <button class="guide-tab" data-g="evidence">증빙자료 안내</button>
+          <button class="guide-tab" data-g="ack">사사표기 방법</button>
+        </div>
+        <div class="guide-body" id="guide-body"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast">등록되었습니다</div>
+
+<script>
+/* ============ 공통 상수 ============ */
+const BIZ_FULL = ['첨단산업','ICT혁신인재','에어갭','중견연구','콘텐츠 디지털포렌식','정보보호특성화(수혜)','기술보호(수혜)','기타'];
+const BIZ_AWARD = ['첨단산업','ICT혁신인재','에어갭','중견연구','콘텐츠 디지털포렌식','기술보호'];
+const BIZ_CERT = ['첨단산업','ICT혁신인재','에어갭','중견연구','콘텐츠 디지털포렌식','기술보호'];
+const BIZ_INTERN = ['첨단산업','ICT혁신인재','에어갭','중견연구','콘텐츠 디지털포렌식','정보보호특성화(수혜)'];
+const BIZ_PATENT = ['첨단산업','ICT혁신인재','에어갭','중견연구','콘텐츠 디지털포렌식','정보보호특성화(수혜)','기타'];
+const NONCOUNT = ['정보보호특성화(수혜)','기술보호(수혜)']; // ACK 집계 제외
+const DEGREES = ['학사과정','석사과정','박사과정','박사후연구원'];
+
+/* ============ API 연동 (GitHub Pages -> GAS fetch) ============ */
+const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbzLK_c6C8nXQbm2TpOytjrzYhjTCFkcfE8GtFpjIa5YMklf_lD327Yv9GnHbDfJuQHWKQ/exec'; // 배포된 GAS 웹앱의 /exec 주소로 교체하세요
+let currentMember = null; // { name, email, degree }
+
+function apiCall(action, extra){
+  const body = Object.assign({ action }, extra);
+  return fetch(API_BASE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // CORS 프리플라이트 회피
+    body: JSON.stringify(body),
+  }).then(r => r.json());
+}
+
+function showGate(errorMsg){
+  document.getElementById('identify-gate').style.display = 'flex';
+  const err = document.getElementById('gate-error');
+  if(errorMsg){ err.textContent = errorMsg; err.style.display = 'block'; } else { err.style.display = 'none'; }
+}
+function hideGate(){ document.getElementById('identify-gate').style.display = 'none'; }
+
+function applyMember(member){
+  currentMember = member;
+  document.getElementById('whoami-name').textContent = member.name;
+  document.getElementById('whoami-degree').textContent = member.degree || '';
+  document.getElementById('whoami-email').textContent = member.email;
+  localStorage.setItem('cseri_member_email', member.email);
+  hideGate();
+}
+
+document.getElementById('gate-confirm').addEventListener('click', ()=>{
+  const email = document.getElementById('gate-email').value.trim();
+  if(!email){ showGate('이메일을 입력해주세요.'); return; }
+  apiCall('verifyMember', { email }).then(res=>{
+    if(res.found){ applyMember(res); }
+    else { showGate('구성원명단에 없는 이메일입니다. 관리자에게 등록을 요청해주세요.'); }
+  }).catch(()=> showGate('서버에 연결할 수 없습니다. API_BASE_URL 설정을 확인해주세요.'));
+});
+document.getElementById('whoami-switch').addEventListener('click', (e)=>{
+  e.preventDefault();
+  localStorage.removeItem('cseri_member_email');
+  document.getElementById('gate-email').value = '';
+  showGate();
+});
+
+// 저장된 이메일이 있으면 자동으로 재확인 시도, 없으면 게이트 표시
+(function initGate(){
+  const saved = localStorage.getItem('cseri_member_email');
+  if(saved){
+    document.getElementById('gate-email').value = saved;
+    apiCall('verifyMember', { email: saved }).then(res=>{
+      if(res.found) applyMember(res); else showGate();
+    }).catch(()=> showGate('서버에 연결할 수 없습니다. API_BASE_URL 설정을 확인해주세요.'));
+  } else {
+    showGate();
+  }
+})();
+
+/* ============ 상태 ============ */
+let currentType = 'journal';
+let entries = [];
+let sessionCount = 0;
+let uploads = []; // {docType, fileName}
+
+/* ============ 유틸 ============ */
+function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function showToast(msg, isError){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=isError?'var(--danger)':'var(--primary-dark)';
+  t.classList.add('show'); clearTimeout(showToast._t); showToast._t=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+/* ============ 이름태그+특성화토글 컴포넌트 ============ */
+function createNameToggle(containerId, opts={}){
+  const wrap = document.getElementById(containerId);
+  let data = [];
+  function render(){
+    wrap.innerHTML='';
+    const inputRow = el('div','nametoggle-input-row');
+    const input = document.createElement('input'); input.type='text'; input.placeholder=opts.placeholder||'이름 입력 후 추가';
+    const addBtn = document.createElement('button'); addBtn.textContent='+ 추가';
+    function addName(){
+      const v=input.value.trim(); if(!v) return;
+      data.push({name:v, special:null});
+      input.value='';
+      render(); updateAll();
+    }
+    addBtn.onclick = addName;
+    input.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addName(); } };
+    inputRow.appendChild(input); inputRow.appendChild(addBtn);
+    wrap.appendChild(inputRow);
+
+    const list = el('div','nametoggle-list');
+    if(data.length===0){
+      list.appendChild(el('div','nametoggle-empty', opts.emptyText || '아직 추가된 이름이 없습니다'));
+    }
+    data.forEach((d,idx)=>{
+      const row = el('div','nametoggle-row');
+      row.appendChild(el('div','nm', d.name));
+      if(opts.toggle !== false){
+        const yn = el('div','yn-toggle');
+        const yBtn = document.createElement('button'); yBtn.textContent='특성화 해당'; yBtn.className = d.special===true?'on':'';
+        const nBtn = document.createElement('button'); nBtn.textContent='비해당'; nBtn.className = d.special===false?'on':'';
+        yBtn.onclick=()=>{ d.special=true; render(); updateAll(); };
+        nBtn.onclick=()=>{ d.special=false; render(); updateAll(); };
+        yn.appendChild(yBtn); yn.appendChild(nBtn);
+        row.appendChild(yn);
+      } else {
+        row.appendChild(el('div'));
+      }
+      const rm = el('button','icon-btn','✕');
+      rm.onclick=()=>{ data.splice(idx,1); render(); updateAll(); };
+      row.appendChild(rm);
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+  }
+  render();
+  return { getData: ()=>data, render };
+}
+
+/* ============ 업로드 슬롯 ============ */
+function renderUploadSlots(containerId, docTypeOptionsFn){
+  const wrap = document.getElementById(containerId);
+  function render(){
+    wrap.innerHTML='';
+    if(uploads.length===0) uploads.push({docType:'', fileName:''});
+    const options = docTypeOptionsFn();
+    uploads.forEach((u,idx)=>{
+      const row = el('div','upload-slot');
+      const fileInput = document.createElement('input'); fileInput.type='file'; fileInput.accept='application/pdf';
+      fileInput.onchange = (e)=>{ u.file = e.target.files[0] || null; u.fileName = u.file ? u.file.name : ''; };
+      const select = document.createElement('select');
+      select.innerHTML = '<option value="">문서 종류 선택</option>' + options.map(o=>`<option value="${o}" ${u.docType===o?'selected':''}>${o}</option>`).join('');
+      select.onchange=(e)=>{ u.docType = e.target.value; };
+      row.appendChild(fileInput); row.appendChild(select);
+      if(uploads.length>1){
+        const rm = el('button','icon-btn','✕');
+        rm.onclick=()=>{ uploads.splice(idx,1); render(); };
+        row.appendChild(rm);
+      } else {
+        row.appendChild(el('div'));
+      }
+      wrap.appendChild(row);
+    });
+    const addBtn = el('button','add-slot-btn','+ 파일 추가');
+    addBtn.onclick=()=>{ uploads.push({docType:'', fileName:''}); render(); };
+    wrap.appendChild(addBtn);
+    wrap.appendChild(el('div','pdf-note','업로드 파일은 PDF로 통일해주세요.'));
+  }
+  render();
+  return { render };
+}
+
+/* ============ 사사표기(수혜) 사업 칩 ============ */
+function renderBizChips(containerId, list, opts={}){
+  const wrap = document.getElementById(containerId);
+  wrap.innerHTML='';
+  const group = el('div','chip-group');
+  list.forEach(b=>{
+    const isSpecial = b.includes('특성화') || b.includes('기술보호');
+    const chip = el('label','chip'+(isSpecial?' ':''));
+    if(b==='기타'){
+      chip.innerHTML = `<input type="checkbox" value="기타"> 기타(개수) <input type="number" class="other-count" min="0" placeholder="0">`;
+      const cb = chip.querySelector('input[type=checkbox]');
+      cb.onchange=(e)=>{ chip.classList.toggle('checked', e.target.checked); updateAll(); };
+      const num = chip.querySelector('input[type=number]');
+      num.oninput = updateAll;
+      num.onclick = (e)=>e.stopPropagation();
+    } else {
+      chip.innerHTML = `<input type="checkbox" value="${b}"> ${b}`;
+      const cb = chip.querySelector('input');
+      cb.onchange=(e)=>{
+        chip.classList.toggle('checked', e.target.checked);
+        chip.classList.toggle('special', e.target.checked && isSpecial);
+        updateAll();
+      };
+    }
+    group.appendChild(chip);
+  });
+  wrap.appendChild(group);
+}
+function collectBiz(containerId){
+  const wrap = document.getElementById(containerId);
+  const checked = Array.from(wrap.querySelectorAll('.chip input[type=checkbox]:checked')).map(el=>el.value);
+  const otherInput = wrap.querySelector('.other-count');
+  const otherCount = otherInput ? (parseInt(otherInput.value)||0) : 0;
+  return { checked, otherCount };
+}
+function calcACK(containerId){
+  const { checked, otherCount } = collectBiz(containerId);
+  const countable = checked.filter(c => !NONCOUNT.includes(c) && c!=='기타').length;
+  return countable + otherCount;
+}
+
+/* ============ 필드 헬퍼 ============ */
+function field(labelText, inner, opts={}){
+  const wrap = el('div','field'+(opts.full?' full':''));
+  wrap.innerHTML = `<label>${labelText}${opts.req?'<span class="req">*</span>':''}</label>`;
+  if(opts.hint) { }
+  wrap.appendChild(inner);
+  if(opts.hint){ wrap.appendChild(el('div','hint',opts.hint)); }
+  return wrap;
+}
+function textInput(id, placeholder){ const i=document.createElement('input'); i.type='text'; i.id=id; if(placeholder) i.placeholder=placeholder; i.oninput=updatePreview; return i; }
+function dateInput(id){ const i=document.createElement('input'); i.type='date'; i.id=id; i.onchange=updatePreview; return i; }
+function numberInput(id, placeholder){ const i=document.createElement('input'); i.type='number'; i.id=id; if(placeholder) i.placeholder=placeholder; i.oninput=updatePreview; return i; }
+function textarea(id){ const t=document.createElement('textarea'); t.id=id; t.oninput=updatePreview; return t; }
+function selectInput(id, options, onchange){
+  const s=document.createElement('select'); s.id=id;
+  s.innerHTML = '<option value="">선택</option>' + options.map(o=>`<option value="${o}">${o}</option>`).join('');
+  s.onchange = onchange || updatePreview;
+  return s;
+}
+function prefillInput(id, defaultVal){
+  const i=document.createElement('input'); i.type='text'; i.id=id; i.value=defaultVal; i.className='prefill';
+  i.onfocus=()=>{ if(i.value===defaultVal){} };
+  i.oninput=()=>{ i.classList.toggle('prefill', i.value===defaultVal); updatePreview(); };
+  return i;
+}
+
+let nt = {}; // nametoggle instances per key
+
+/* ============ 유형별 렌더 ============ */
+const RENDERERS = {
+  journal: renderJournal, conference: renderConference, award: renderAward,
+  cert: renderCert, intern: renderIntern, patent: renderPatent
+};
+const TYPE_LABELS = { journal:'저널논문', conference:'학술대회논문', award:'수상', cert:'자격증', intern:'인턴쉽', patent:'특허/저작권/프로그램' };
+
+function renderFields(){
+  const body = document.getElementById('form-body');
+  body.innerHTML='';
+  uploads = [];
+  nt = {};
+  RENDERERS[currentType](body);
+  updatePreview();
+}
+
+function sectionTitle(t){ return el('div','section-title', t); }
+
+/* ---- 저널논문 ---- */
+function renderJournal(body){
+  body.appendChild(sectionTitle('사사표기 사업'));
+  body.appendChild(el('div','', '').cloneNode ? (()=>{const d=el('div'); d.id='biz-wrap'; return d;})() : null);
+  const bizWrap = el('div'); bizWrap.id='biz-wrap'; body.appendChild(bizWrap);
+  renderBizChips('biz-wrap', BIZ_FULL);
+
+  body.appendChild(sectionTitle('논문 정보'));
+  const grid = el('div','field-grid'); body.appendChild(grid);
+  grid.appendChild(field('국내외 구분', selectInput('f-nk', ['국내','국외']), {req:true}));
+  grid.appendChild(field('논문 등급', selectInput('f-grade', ['SCI(E)','KCI','Scopus','비SCI(E)']), {req:true}));
+  grid.appendChild(field('메인 언어', selectInput('f-lang', ['국문','영문'], ()=>{ toggleEngTitle(); updatePreview(); }), {req:true}));
+  grid.appendChild(el('div'));
+  grid.appendChild(field('논문명(메인 언어)', textInput('f-title'), {req:true, full:true}));
+  const engField = field('영문 논문명', textInput('f-title-en'), {req:true, full:true, hint:'메인 언어가 국문일 때만 필수'});
+  engField.id='eng-title-field'; grid.appendChild(engField);
+
+  body.appendChild(sectionTitle('저자 정보'));
+  const g2 = el('div','field-grid'); body.appendChild(g2);
+  const f1 = field('1저자명', (()=>{const d=el('div'); d.id='nt-first'; return d;})(), {req:true, full:true}); g2.appendChild(f1);
+  nt.first = createNameToggle('nt-first', {placeholder:'1저자 이름'});
+  const f2 = field('공동저자명', (()=>{const d=el('div'); d.id='nt-co'; return d;})(), {full:true}); g2.appendChild(f2);
+  nt.co = createNameToggle('nt-co', {placeholder:'공동저자 이름', emptyText:'선택 입력'});
+  g2.appendChild(field('교신저자명', textInput('f-corr'), {req:true, hint:'특성화 토글 미적용'}));
+
+  body.appendChild(sectionTitle('게재 정보'));
+  const g3 = el('div','field-grid'); body.appendChild(g3);
+  g3.appendChild(field('학술지명', textInput('f-journal'), {req:true}));
+  g3.appendChild(field('발행기관', textInput('f-publisher'), {req:true}));
+  g3.appendChild(field('발행국가', textInput('f-country'), {req:true}));
+  g3.appendChild(field('볼륨번호', textInput('f-volume'), {req:true}));
+  g3.appendChild(field('출판일자', dateInput('f-pubdate'), {req:true}));
+  const pageField = el('div','field'); pageField.innerHTML='<label>논문페이지 <span class="req">*</span></label>';
+  const pageRow = el('div','row2'); const ps=numberInput('f-page-s','시작'); const pe=numberInput('f-page-e','끝'); pageRow.appendChild(ps); pageRow.appendChild(pe);
+  pageField.appendChild(pageRow); g3.appendChild(pageField);
+  g3.appendChild(field('임팩트팩터(IF)', numberInput('f-if'), {req:true}));
+  g3.appendChild(field('ISBN/ISSN', textInput('f-isbn'), {req:true}));
+  g3.appendChild(field('DOI', textInput('f-doi'), {req:true, full:true}));
+  g3.appendChild(field('초록', textarea('f-abstract'), {req:true, full:true}));
+
+  const extWrap = el('div','field full');
+  extWrap.innerHTML = '<label class="checkbox-row"><input type="checkbox" id="f-ext"> 학술대회논문을 확장하여 게재함</label>';
+  body.appendChild(extWrap);
+  const extGrid = el('div','field-grid'); extGrid.id='ext-grid'; extGrid.style.display='none'; body.appendChild(extGrid);
+  extGrid.appendChild(field('학술대회명', textInput('f-ext-conf'), {req:true}));
+  extGrid.appendChild(field('발표논문명', textInput('f-ext-title'), {req:true}));
+  extGrid.appendChild(field('발표일', dateInput('f-ext-date'), {req:true}));
+  document.getElementById('f-ext').onchange = (e)=>{ extGrid.style.display = e.target.checked?'grid':'none'; };
+
+  body.appendChild(sectionTitle('증빙 자료'));
+  const uploadWrap = el('div'); uploadWrap.id='upload-wrap'; body.appendChild(uploadWrap);
+  renderUploadSlots('upload-wrap', ()=>['논문 원본']);
+
+  const ackWrap = el('div','calc-box'); body.appendChild(ackWrap);
+  ackWrap.appendChild(calcChip('ack-chip','사사표기 개수 (ACK)','0'));
+
+  function toggleEngTitle(){
+    const lang = document.getElementById('f-lang').value;
+    engField.style.display = lang==='국문' ? 'flex' : 'none';
+  }
+  toggleEngTitle();
+}
+
+/* ---- 학술대회논문 ---- */
+function renderConference(body){
+  body.appendChild(sectionTitle('사사표기 사업'));
+  const bizWrap = el('div'); bizWrap.id='biz-wrap'; body.appendChild(bizWrap);
+  renderBizChips('biz-wrap', BIZ_FULL);
+
+  body.appendChild(sectionTitle('발표 정보'));
+  const g = el('div','field-grid'); body.appendChild(g);
+  g.appendChild(field('학술대회명', textInput('f-conf'), {req:true, full:true}));
+  const f1 = field('1저자명', (()=>{const d=el('div'); d.id='nt-first'; return d;})(), {req:true, full:true}); g.appendChild(f1);
+  nt.first = createNameToggle('nt-first', {placeholder:'1저자(발표자) 이름'});
+  const f2 = field('공동저자명', (()=>{const d=el('div'); d.id='nt-co'; return d;})(), {req:true, full:true}); g.appendChild(f2);
+  nt.co = createNameToggle('nt-co', {placeholder:'공동저자 이름'});
+  g.appendChild(field('교신저자명', textInput('f-corr'), {req:true, hint:'특성화 토글 미적용'}));
+  g.appendChild(el('div'));
+  g.appendChild(field('발표논문명', textarea('f-title'), {req:true, full:true}));
+  g.appendChild(field('발표일자', dateInput('f-date'), {req:true}));
+  g.appendChild(field('장소', textInput('f-place'), {req:true}));
+  g.appendChild(field('국가', textInput('f-country'), {req:true}));
+  g.appendChild(field('발표유형', selectInput('f-presenttype', ['구두발표','포스터 발표']), {req:true}));
+  g.appendChild(field('사사표기 위치', selectInput('f-ackpos', ['논문 원본','포스터','없음']), {req:true}));
+
+  body.appendChild(sectionTitle('증빙 자료'));
+  const uploadWrap = el('div'); uploadWrap.id='upload-wrap'; body.appendChild(uploadWrap);
+  renderUploadSlots('upload-wrap', ()=>['논문 원본','발표자료','포스터']);
+
+  const ackWrap = el('div','calc-box'); body.appendChild(ackWrap);
+  ackWrap.appendChild(calcChip('ack-chip','사사표기 개수 (ACK)','0'));
+}
+
+/* ---- 수상 ---- */
+function renderAward(body){
+  body.appendChild(sectionTitle('사사표기 사업'));
+  const bizWrap = el('div'); bizWrap.id='biz-wrap'; body.appendChild(bizWrap);
+  renderBizChips('biz-wrap', BIZ_AWARD);
+
+  body.appendChild(sectionTitle('수상 정보'));
+  const g = el('div','field-grid'); body.appendChild(g);
+  g.appendChild(field('종류', selectInput('f-kind', ['학술대회','경진대회']), {req:true}));
+  g.appendChild(field('수상 대회 명칭', textInput('f-contest'), {req:true}));
+  g.appendChild(field('수상명', textInput('f-prize'), {req:true}));
+  g.appendChild(field('수상일자', dateInput('f-date'), {req:true}));
+  g.appendChild(field('수상 내용', textarea('f-desc'), {req:true, full:true}));
+  const f1 = field('수상자', (()=>{const d=el('div'); d.id='nt-winners'; return d;})(), {req:true, full:true}); g.appendChild(f1);
+  nt.winners = createNameToggle('nt-winners', {placeholder:'수상자 이름 (팀이면 전원 추가)'});
+  g.appendChild(field('주최', textInput('f-host'), {req:true, full:true}));
+
+  body.appendChild(sectionTitle('증빙 자료'));
+  const uploadWrap = el('div'); uploadWrap.id='upload-wrap'; body.appendChild(uploadWrap);
+  renderUploadSlots('upload-wrap', ()=>['상장 스캔본']);
+
+  const noteBox = el('div','ack-block');
+  noteBox.innerHTML = '<b>자동 복사 안내</b> — 상장 스캔본을 1개만 업로드하면, 수상자 중 "특성화 해당"으로 표시된 인원 수만큼 파일이 자동 복사되어 각자 이름 기준 파일명으로 저장됩니다.';
+  body.appendChild(noteBox);
+}
+
+/* ---- 자격증 ---- */
+function renderCert(body){
+  body.appendChild(sectionTitle('수혜 중인 사업'));
+  const bizWrap = el('div'); bizWrap.id='biz-wrap'; body.appendChild(bizWrap);
+  renderBizChips('biz-wrap', BIZ_CERT);
+
+  body.appendChild(sectionTitle('특성화 여부'));
+  const ynWrap = el('div','field full'); ynWrap.innerHTML='<label>정보보호특성화 수혜 여부 <span class="req">*</span></label>';
+  const yn = el('div','yn-toggle'); yn.id='cert-yn';
+  const yBtn=document.createElement('button'); yBtn.textContent='O (해당)'; const nBtn=document.createElement('button'); nBtn.textContent='X (비해당)';
+  let certYN=null;
+  yBtn.onclick=()=>{ certYN=true; yBtn.className='on'; nBtn.className=''; updatePreview(); };
+  nBtn.onclick=()=>{ certYN=false; nBtn.className='on'; yBtn.className=''; updatePreview(); };
+  yn.appendChild(yBtn); yn.appendChild(nBtn); ynWrap.appendChild(yn); body.appendChild(ynWrap);
+  window.__certYN = ()=>certYN;
+
+  body.appendChild(sectionTitle('자격증 정보'));
+  const g = el('div','field-grid'); body.appendChild(g);
+  g.appendChild(field('이름', textInput('f-name'), {req:true}));
+  g.appendChild(field('학위과정', selectInput('f-degree', DEGREES), {req:true}));
+  g.appendChild(field('자격증 명칭', textInput('f-certname'), {req:true}));
+  g.appendChild(field('발급기관', textInput('f-issuer'), {req:true}));
+  g.appendChild(field('합격일자', dateInput('f-passdate'), {req:true}));
+  g.appendChild(field('구분', selectInput('f-kind', ['국가','민간']), {req:true}));
+
+  body.appendChild(sectionTitle('증빙 자료'));
+  const uploadWrap = el('div'); uploadWrap.id='upload-wrap'; body.appendChild(uploadWrap);
+  renderUploadSlots('upload-wrap', ()=>['자격증 사본']);
+}
+
+/* ---- 인턴쉽 ---- */
+function renderIntern(body){
+  body.appendChild(sectionTitle('수혜 중인 사업'));
+  const bizWrap = el('div'); bizWrap.id='biz-wrap'; body.appendChild(bizWrap);
+  renderBizChips('biz-wrap', BIZ_INTERN);
+
+  body.appendChild(sectionTitle('인턴쉽 정보'));
+  const g = el('div','field-grid'); body.appendChild(g);
+  g.appendChild(field('이름', textInput('f-name'), {req:true}));
+  g.appendChild(field('학위과정', selectInput('f-degree', DEGREES), {req:true}));
+  g.appendChild(field('국내외구분', selectInput('f-nk', ['국내','국외']), {req:true}));
+  g.appendChild(field('인턴쉽 기관명', textInput('f-org'), {req:true}));
+  const dRow = el('div','field'); dRow.innerHTML='<label>수행기간 <span class="req">*</span></label>';
+  const dInner = el('div','row2'); const sd=dateInput('f-start'); const ed=dateInput('f-end');
+  sd.onchange = ()=>{ calcDays(); updatePreview(); }; ed.onchange = ()=>{ calcDays(); updatePreview(); };
+  dInner.appendChild(sd); dInner.appendChild(ed); dRow.appendChild(dInner); g.appendChild(dRow);
+  g.appendChild(field('인턴쉽 내용', textarea('f-desc'), {req:true, full:true}));
+
+  const calcWrap = el('div','calc-box'); body.appendChild(calcWrap);
+  calcWrap.appendChild(calcChip('days-chip','일수 (자동계산)','0'));
+
+  body.appendChild(sectionTitle('증빙 자료'));
+  const uploadWrap = el('div'); uploadWrap.id='upload-wrap'; body.appendChild(uploadWrap);
+  renderUploadSlots('upload-wrap', ()=>['인턴쉽 증명서','재직증명서','건강보험자격확인서','기타 근무 확인 자료']);
+
+  function calcDays(){
+    const s = document.getElementById('f-start').value, e = document.getElementById('f-end').value;
+    const chip = document.getElementById('days-chip-val');
+    if(s && e){
+      const diff = Math.round((new Date(e)-new Date(s))/86400000)+1;
+      chip.textContent = diff>0? diff : 0;
+    } else chip.textContent='0';
+  }
+}
+
+/* ---- 특허/저작권/프로그램 ---- */
+function renderPatent(body){
+  body.appendChild(sectionTitle('사사표기 사업'));
+  const bizWrap = el('div'); bizWrap.id='biz-wrap'; body.appendChild(bizWrap);
+  renderBizChips('biz-wrap', BIZ_PATENT);
+
+  body.appendChild(sectionTitle('출원/등록 정보'));
+  const g = el('div','field-grid'); body.appendChild(g);
+  g.appendChild(field('분류', selectInput('f-class', ['특허 출원','특허 등록','저작권 등록','프로그램 등록'], ()=>{ toggleRegFields(); updatePreview(); }), {req:true}));
+  g.appendChild(field('국내외구분', selectInput('f-nk', ['국내','국외'], updatePreview), {req:true}));
+  g.appendChild(field('출원(등록)국', textInput('f-nation'), {req:true}));
+  g.appendChild(field('출원번호/접수번호', textInput('f-appno'), {req:true}));
+  g.appendChild(field('출원일/창작연월일', dateInput('f-appdate'), {req:true}));
+  const regNo = field('등록번호/저작권등록번호', textInput('f-regno'), {req:true, hint:'등록 단계일 때만'}); regNo.id='reg-no-field'; g.appendChild(regNo);
+  const regDate = field('등록일', dateInput('f-regdate'), {req:true, hint:'등록 단계일 때만'}); regDate.id='reg-date-field'; g.appendChild(regDate);
+  g.appendChild(field('발명(고안,디자인)의 명칭', textarea('f-title'), {req:true, full:true}));
+  g.appendChild(field('공개유무', selectInput('f-open', ['유','무']), {req:true}));
+  g.appendChild(field('출원(등록)기관', prefillInput('f-org','성신여자대학교 연구산학협력단'), {req:true}));
+  g.appendChild(field('출원(등록)기관 사업자등록번호', prefillInput('f-bizno','209-82-08357'), {req:true}));
+
+  body.appendChild(sectionTitle('발명인 정보'));
+  const g2 = el('div','field-grid'); body.appendChild(g2);
+  const f1 = field('발명인', (()=>{const d=el('div'); d.id='nt-inventors'; return d;})(), {req:true, full:true}); g2.appendChild(f1);
+  nt.inventors = createNameToggle('nt-inventors', {placeholder:'발명인 이름'});
+  g2.appendChild(field('소유기관', textInput('f-owner'), {req:true}));
+  g2.appendChild(field('활용형태', selectInput('f-usage', ['미활용','활용']), {req:true}));
+  g2.appendChild(field('표준특허 여부', selectInput('f-std', ['예','아니오'], ()=>{ toggleStdFields(); updatePreview(); }), {req:true}));
+
+  const stdGrid = el('div','field-grid'); stdGrid.id='std-grid'; stdGrid.style.display='none'; body.appendChild(stdGrid);
+  stdGrid.appendChild(field('관련 표준명', textInput('f-stdname')));
+  stdGrid.appendChild(field('표준화 기구명', textInput('f-stdorg')));
+  stdGrid.appendChild(field('표준번호', textInput('f-stdno')));
+  stdGrid.appendChild(field('IRP선언(확약)일', dateInput('f-irp')));
+  stdGrid.appendChild(field('해당 표준기술 포함 특허청구항번호', textInput('f-claim'), {full:true}));
+
+  body.appendChild(sectionTitle('증빙 자료'));
+  const uploadWrap = el('div'); uploadWrap.id='upload-wrap'; body.appendChild(uploadWrap);
+  renderUploadSlots('upload-wrap', ()=> patentDocOptions());
+
+  const calcWrap = el('div','calc-box'); body.appendChild(calcWrap);
+  calcWrap.appendChild(calcChip('ack-chip','사사표기 개수 (ACK)','0'));
+  calcWrap.appendChild(calcChip('contrib-chip','기여율(%)','—'));
+
+  function toggleRegFields(){
+    const cls = document.getElementById('f-class').value;
+    const isReg = cls==='특허 등록';
+    document.getElementById('reg-no-field').style.display = isReg? 'flex':'none';
+    document.getElementById('reg-date-field').style.display = isReg? 'flex':'none';
+    // re-render upload doc options
+    renderUploadSlots('upload-wrap', ()=> patentDocOptions());
+  }
+  function toggleStdFields(){
+    stdGrid.style.display = document.getElementById('f-std').value==='예' ? 'grid':'none';
+  }
+  function patentDocOptions(){
+    const cls = document.getElementById('f-class') ? document.getElementById('f-class').value : '';
+    const nk = document.getElementById('f-nk') ? document.getElementById('f-nk').value : '';
+    if(cls==='특허 출원' && nk==='국내') return ['특허번호통지서','특허출원서','전자출원 접수증'];
+    if(cls==='특허 등록' && nk==='국내') return ['특허등록증','특허등록공보'];
+    if(cls==='특허 출원' && nk==='국외') return ['특허번호통지서','특허출원공보'];
+    if(cls==='특허 등록' && nk==='국외') return ['특허등록증','특허등록공보','특허등록 결정서'];
+    if(cls==='저작권 등록' || cls==='프로그램 등록') return ['저작권/프로그램 등록증'];
+    return ['문서 종류를 먼저 선택하려면 분류/국내외구분을 입력하세요'];
+  }
+  document.getElementById('f-nk').addEventListener('change', ()=> renderUploadSlots('upload-wrap', ()=> patentDocOptions()));
+  toggleRegFields(); toggleStdFields();
+}
+
+function calcChip(id, label, val){
+  const c = el('div','calc-chip');
+  c.innerHTML = `<div class="cl">${label}</div><div class="cv" id="${id}-val">${val}</div>`;
+  return c;
+}
+
+/* ============ 미리보기/계산 갱신 ============ */
+function updateAll(){ updatePreview(); }
+
+function updatePreview(){
+  const fp = document.getElementById('fp-value'); const hint = document.getElementById('fp-hint');
+  if(!fp) return;
+
+  if(document.getElementById('ack-chip-val') && document.getElementById('biz-wrap')){
+    document.getElementById('ack-chip-val').textContent = calcACK('biz-wrap');
+  }
+  if(document.getElementById('contrib-chip-val')){
+    const ack = calcACK('biz-wrap');
+    document.getElementById('contrib-chip-val').textContent = ack>0 ? (100/ack).toFixed(2)+'%' : '—';
+  }
+
+  const gv = (id)=>{ const e=document.getElementById(id); return e? e.value.trim(): ''; };
+
+  if(currentType==='journal'){
+    const first = nt.first ? nt.first.getData() : [];
+    const name = first[0] ? first[0].name : '';
+    const title = gv('f-title');
+    if(name && title){ fp.textContent = `${name}_${title}.pdf`; hint.textContent='1저자명_논문명'; }
+    else { fp.textContent='항목을 입력하면 파일명이 여기에 표시됩니다'; hint.textContent=''; }
+  } else if(currentType==='conference'){
+    const first = nt.first ? nt.first.getData() : [];
+    const name = first[0] ? first[0].name : '';
+    const title = gv('f-title'); const ptype = gv('f-presenttype');
+    if(name && title){ fp.textContent = `${name}_${title}_${ptype==='포스터 발표'?'포스터':'구두발표'}.pdf`; hint.textContent='1저자명_논문명_구두발표(또는 포스터)'; }
+    else { fp.textContent='항목을 입력하면 파일명이 여기에 표시됩니다'; hint.textContent=''; }
+  } else if(currentType==='award'){
+    const winners = nt.winners ? nt.winners.getData() : [];
+    const contest = gv('f-contest'); const prize = gv('f-prize');
+    if(winners.length===0 || !contest || !prize){ fp.textContent='수상자와 대회 정보를 입력하면 파일명이 표시됩니다'; hint.textContent=''; }
+    else {
+      const special = winners.filter(w=>w.special===true).map(w=>w.name);
+      if(special.length>0){
+        fp.innerHTML = special.map(n=>`${n}_${contest}_${prize}.pdf`).join('<br>');
+        hint.textContent = `특성화 해당 ${special.length}명 각각 자동 복사됩니다.`;
+      } else {
+        fp.textContent = `${winners[0].name}_${contest}_${prize}.pdf`;
+        hint.textContent = '대표 수상자 이름으로 저장됩니다.';
+      }
+    }
+  } else if(currentType==='cert'){
+    const name = gv('f-name'); const cname = gv('f-certname');
+    if(name && cname){ fp.textContent = `${name}_${cname}.pdf`; hint.textContent='이름_자격증명칭'; }
+    else { fp.textContent='항목을 입력하면 파일명이 여기에 표시됩니다'; hint.textContent=''; }
+  } else if(currentType==='intern'){
+    const name = gv('f-name'); const org = gv('f-org');
+    if(name && org){ fp.textContent = `${name}_${org}.pdf`; hint.textContent='이름_기관명'; }
+    else { fp.textContent='항목을 입력하면 파일명이 여기에 표시됩니다'; hint.textContent=''; }
+  } else if(currentType==='patent'){
+    const cls = gv('f-class'); const appno = gv('f-appno'); const regno = gv('f-regno');
+    if(cls==='저작권 등록' || cls==='프로그램 등록'){
+      if(regno){ fp.textContent = `(저작권_프로그램)등록부_${regno}.pdf`; hint.textContent='(저작권_프로그램)등록부_등록번호'; }
+      else { fp.textContent='등록번호를 입력하면 파일명이 표시됩니다'; hint.textContent=''; }
+    } else if(cls==='특허 출원'){
+      if(appno){ fp.textContent = `특허_출원_${appno}.pdf`; hint.textContent='특허_출원_출원번호'; }
+      else { fp.textContent='출원번호를 입력하면 파일명이 표시됩니다'; hint.textContent=''; }
+    } else if(cls==='특허 등록'){
+      if(regno){ fp.textContent = `특허_등록_${regno}.pdf`; hint.textContent='특허_등록_등록번호'; }
+      else { fp.textContent='등록번호를 입력하면 파일명이 표시됩니다'; hint.textContent=''; }
+    } else {
+      fp.textContent='분류를 선택하면 파일명이 표시됩니다'; hint.textContent='';
+    }
+  }
+}
+
+/* ============ 유형 탭 ============ */
+function renderTypeTabs(){
+  const wrap = document.getElementById('type-tabs'); wrap.innerHTML='';
+  Object.keys(TYPE_LABELS).forEach(key=>{
+    const b = el('button','type-tab'+(key===currentType?' active':''), TYPE_LABELS[key]);
+    b.onclick=()=>{ currentType=key; renderTypeTabs(); renderFields(); };
+    wrap.appendChild(b);
+  });
+}
+
+/* ============ Apps Script 연동 - payload 빌드 & 파일 변환 ============ */
+function gval(id){ const e=document.getElementById(id); return e ? e.value.trim() : ''; }
+function bizDisplayString(){
+  const { checked, otherCount } = collectBiz('biz-wrap');
+  const parts = checked.filter(c=>c!=='기타');
+  if(checked.includes('기타')) parts.push(`기타(${otherCount||0})`);
+  return parts.join(', ');
+}
+function fileToBase64(file){
+  return new Promise((resolve, reject)=>{
+    if(!file){ resolve(''); return; }
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/** 현재 유형의 화면 입력값을 Submit_Handler.gs의 payload 형식으로 변환 (파일 제외) */
+function buildPayload(){
+  const filename = document.getElementById('fp-value').textContent;
+  const out = { typeKey: currentType };
+
+  if(currentType==='journal'){
+    const first = nt.first ? nt.first.getData() : [];
+    const co = nt.co ? nt.co.getData() : [];
+    out.fields = {
+      '사사표기 사업': bizDisplayString(),
+      '국내외 구분': gval('f-nk'), '논문 등급': gval('f-grade'), '메인 언어': gval('f-lang'),
+      '논문명': gval('f-title'), '영문 논문명': gval('f-title-en'),
+      '1저자명': first[0] ? first[0].name : '',
+      '공동저자(JSON)': JSON.stringify(co),
+      '공동저자 요약': co.map(c=>c.name+(c.special?'(특성화)':'')).join(', '),
+      '교신저자명': gval('f-corr'),
+      '학술지명': gval('f-journal'), '발행기관': gval('f-publisher'), '발행국가': gval('f-country'),
+      '볼륨번호': gval('f-volume'), '출판일자': gval('f-pubdate'),
+      '페이지 시작': gval('f-page-s'), '페이지 끝': gval('f-page-e'),
+      '임팩트팩터(IF)': gval('f-if'), 'ISBN/ISSN': gval('f-isbn'), 'DOI': gval('f-doi'),
+      '초록': gval('f-abstract'),
+      '확장게재 여부': (document.getElementById('f-ext') && document.getElementById('f-ext').checked) ? 'Y' : 'N',
+      '확장_학술대회명': gval('f-ext-conf'), '확장_발표논문명': gval('f-ext-title'), '확장_발표일': gval('f-ext-date'),
+      '자동생성 파일명': filename,
+    };
+    out.biz = collectBiz('biz-wrap');
+  } else if(currentType==='conference'){
+    const first = nt.first ? nt.first.getData() : [];
+    const co = nt.co ? nt.co.getData() : [];
+    out.fields = {
+      '사사표기 사업': bizDisplayString(),
+      '학술대회명': gval('f-conf'),
+      '1저자명': first[0] ? first[0].name : '',
+      '공동저자(JSON)': JSON.stringify(co),
+      '공동저자 요약': co.map(c=>c.name+(c.special?'(특성화)':'')).join(', '),
+      '교신저자명': gval('f-corr'),
+      '발표논문명': gval('f-title'), '발표일자': gval('f-date'),
+      '장소': gval('f-place'), '국가': gval('f-country'),
+      '발표유형': gval('f-presenttype'), '사사표기 위치': gval('f-ackpos'),
+      '자동생성 파일명': filename,
+    };
+    out.biz = collectBiz('biz-wrap');
+  } else if(currentType==='award'){
+    const winners = nt.winners ? nt.winners.getData() : [];
+    const specialNames = winners.filter(w=>w.special===true).map(w=>w.name);
+    out.fields = {
+      '사사표기 사업': bizDisplayString(),
+      '종류': gval('f-kind'), '수상 대회 명칭': gval('f-contest'), '수상명': gval('f-prize'),
+      '수상 내용': gval('f-desc'),
+      '수상자(JSON)': JSON.stringify(winners),
+      '수상자 요약': winners.map(w=>w.name).join(', '),
+      '수상일자': gval('f-date'), '주최': gval('f-host'),
+      '특성화 자동복사 대상': specialNames.join(', '),
+      '자동생성 파일명': filename,
+    };
+    out.winners = winners;
+  } else if(currentType==='cert'){
+    const ynVal = window.__certYN ? window.__certYN() : null;
+    out.fields = {
+      '수혜 중인 사업': bizDisplayString(),
+      '정보보호특성화 수혜 여부': ynVal===true ? 'O' : (ynVal===false ? 'X' : ''),
+      '이름': gval('f-name'), '학위과정': gval('f-degree'),
+      '자격증 명칭': gval('f-certname'), '발급기관': gval('f-issuer'),
+      '합격일자': gval('f-passdate'), '구분': gval('f-kind'),
+      '자동생성 파일명': filename,
+    };
+    out.biz = collectBiz('biz-wrap');
+  } else if(currentType==='intern'){
+    const daysEl = document.getElementById('days-chip-val');
+    out.fields = {
+      '수혜 중인 사업': bizDisplayString(),
+      '이름': gval('f-name'), '학위과정': gval('f-degree'),
+      '국내외구분': gval('f-nk'), '인턴쉽 기관명': gval('f-org'),
+      '시작일': gval('f-start'), '종료일': gval('f-end'),
+      '일수': daysEl ? daysEl.textContent : '',
+      '인턴쉽 내용': gval('f-desc'),
+      '자동생성 파일명': filename,
+    };
+    out.biz = collectBiz('biz-wrap');
+  } else if(currentType==='patent'){
+    const inv = nt.inventors ? nt.inventors.getData() : [];
+    out.fields = {
+      '사사표기 사업': bizDisplayString(),
+      '분류': gval('f-class'), '국내외구분': gval('f-nk'), '출원(등록)국': gval('f-nation'),
+      '출원번호/접수번호': gval('f-appno'), '출원일/창작연월일': gval('f-appdate'),
+      '등록번호/저작권등록번호': gval('f-regno'), '등록일': gval('f-regdate'),
+      '발명(고안,디자인)의 명칭': gval('f-title'), '공개유무': gval('f-open'),
+      '출원(등록)기관': gval('f-org'), '사업자등록번호': gval('f-bizno'),
+      '발명인(JSON)': JSON.stringify(inv),
+      '발명인 요약': inv.map(i=>i.name+(i.special?'(특성화)':'')).join(', '),
+      '소유기관': gval('f-owner'), '활용형태': gval('f-usage'),
+      '표준특허 여부': gval('f-std'),
+      '관련표준명': gval('f-stdname'), '표준화기구명': gval('f-stdorg'), '표준번호': gval('f-stdno'),
+      'IRP선언(확약)일': gval('f-irp'), '특허청구항번호': gval('f-claim'),
+      '자동생성 파일명': filename,
+    };
+    out.biz = collectBiz('biz-wrap');
+  }
+  return out;
+}
+
+/* ============ 등록 ============ */
+document.getElementById('submit-btn').addEventListener('click', ()=>{
+  if(!currentMember){ showGate('먼저 이메일을 확인해주세요.'); return; }
+
+  const payload = buildPayload();
+  payload.member = { email: currentMember.email };
+
+  const validUploads = uploads.filter(u => u.file && u.docType);
+  if(validUploads.length===0){
+    showToast('증빙 파일과 문서 종류를 선택해주세요', true);
+    return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = '등록 중...';
+
+  Promise.all(validUploads.map(u =>
+    fileToBase64(u.file).then(b64 => ({ docType: u.docType, fileName: u.file.name, base64: b64 }))
+  )).then(files=>{
+    if(currentType==='award'){
+      payload.awardUpload = files[0] ? { docType: files[0].docType, base64: files[0].base64 } : null;
+    } else {
+      payload.uploads = files;
+    }
+
+    if(API_BASE_URL.indexOf('PASTE_YOUR')===0){
+      // 배포 URL이 아직 설정 안 된 상태 - 로컬 미리보기로 대체
+      sessionCount++;
+      entries.push({ id: Date.now(), typeKey: currentType, title: document.getElementById('fp-value').textContent, biz: collectBiz('biz-wrap').checked, date: new Date().toISOString().slice(0,10) });
+      showToast('성과가 등록되었습니다 (로컬 미리보기 — API_BASE_URL 설정 후 실제 저장됩니다)');
+      btn.disabled = false; btn.textContent = '성과 등록';
+      renderFields();
+      return;
+    }
+
+    apiCall('submitAchievement', { payload })
+      .then(res=>{
+        if(res.success){
+          showToast(`성과가 등록되었습니다 (${res.sheetName} #${res.rowNumber}, 증빙 ${res.evidenceCount}건)`);
+          renderFields();
+        } else {
+          showToast('등록 실패: ' + res.error, true);
+        }
+        btn.disabled = false; btn.textContent = '성과 등록';
+      })
+      .catch(err=>{
+        showToast('등록 실패: ' + err, true);
+        btn.disabled = false; btn.textContent = '성과 등록';
+      });
+  }).catch(err=>{
+    showToast('파일 변환 중 오류가 발생했습니다: ' + err, true);
+    btn.disabled = false; btn.textContent = '성과 등록';
+  });
+});
+document.getElementById('reset-btn').addEventListener('click', renderFields);
+
+/* ============ 목록 ============ */
+function normalizeBiz(name){ return name.replace(/\s*\(수혜\)$/, ''); }
+const ALL_BIZ = Array.from(new Set([...BIZ_FULL, ...BIZ_AWARD, ...BIZ_CERT, ...BIZ_INTERN, ...BIZ_PATENT].map(normalizeBiz))).filter(b=>b!=='기타').sort();
+
+function renderListFilters(){
+  const fType = document.getElementById('f-type');
+  fType.innerHTML = '<option value="">전체 유형</option>' + Object.entries(TYPE_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  const fBiz = document.getElementById('f-biz');
+  fBiz.innerHTML = '<option value="">전체 사업</option>' + ALL_BIZ.map(b=>`<option value="${b}">${b}</option>`).join('');
+}
+function getFilteredEntries(){
+  const typeFilter = document.getElementById('f-type').value;
+  const bizFilter = document.getElementById('f-biz').value;
+  const search = document.getElementById('f-search').value.trim().toLowerCase();
+  return entries.filter(e=>{
+    if(typeFilter && e.typeKey!==typeFilter) return false;
+    if(bizFilter && !e.biz.some(b => normalizeBiz(b)===bizFilter)) return false;
+    if(search && !e.title.toLowerCase().includes(search)) return false;
+    return true;
+  }).sort((a,b)=> b.date.localeCompare(a.date));
+}
+function renderList(){
+  const filtered = getFilteredEntries();
+  document.getElementById('list-count').textContent = `총 ${filtered.length}건`;
+  const wrap = document.getElementById('list-wrap');
+  if(filtered.length===0){
+    wrap.innerHTML = `<div class="empty-state"><div class="glyph">＋</div><p>조건에 맞는 성과가 없습니다</p></div>`;
+    return;
+  }
+  wrap.innerHTML = `<table><thead><tr><th style="width:110px">유형</th><th>파일명 미리보기</th><th style="width:200px">사업</th><th style="width:90px">등록일</th></tr></thead><tbody>
+    ${filtered.map(e=>`<tr><td><span class="tag">${TYPE_LABELS[e.typeKey]}</span></td><td class="mono" style="font-size:11.5px">${e.title}</td><td>${e.biz.map(b=>`<span class="biz-tag">${b}</span>`).join('')}</td><td>${e.date}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+document.getElementById('f-type').addEventListener('change', renderList);
+document.getElementById('f-biz').addEventListener('change', renderList);
+document.getElementById('f-search').addEventListener('input', renderList);
+
+document.getElementById('download-btn').addEventListener('click', ()=>{
+  const filtered = getFilteredEntries();
+  if(filtered.length===0){ showToast('다운로드할 성과가 없습니다', true); return; }
+  const rows = filtered.map(e=>({
+    '유형': TYPE_LABELS[e.typeKey],
+    '파일명 미리보기': e.title,
+    '사업': e.biz.join(', '),
+    '등록일': e.date,
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:16},{wch:50},{wch:36},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '성과목록');
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `성과목록_${today}.xlsx`);
+  showToast(`${filtered.length}건 다운로드되었습니다`);
+});
+
+/* ============ 안내 페이지 ============ */
+const GUIDE_REG = `
+<h3>공통 안내</h3>
+<table class="guide-table">
+<tr><td class="num">1</td><td>각 항목은 빈칸 없이 작성해주세요.</td></tr>
+<tr><td class="num">2</td><td>논문 게재 전, 상장 수령 전 등 당장 작성이 어려운 항목은 등록 후 임시저장하고, 추후 반드시 이어서 채워주세요.</td></tr>
+<tr><td class="num">3</td><td>본인이 작성한 성과 외 다른 사람의 성과는 임의로 수정할 수 없습니다.</td></tr>
+</table>
+
+<h3>유형별 유의사항</h3>
+<table class="guide-table narrow">
+<thead><tr><th>유형</th><th>유의사항</th></tr></thead>
+<tr><td>저널논문<br>학술대회논문</td><td>
+・ 논문 내 작성한 사사표기(Acknowledgement)를 확인 후 해당 사업에 표시 (정보보호특성화 수혜 학생은 해당 없음)<br>
+・ 정보보호특성화는 별도 사사표기 없이, 수혜 학생이 있으면 "사사표기 사업"에서 정보보호특성화(수혜)로 표시<br>
+・ 논문 제목은 저널·학회지에 제출한 메인 언어 그대로 작성<br>
+・ (저널논문) 우수논문에서 확장 게재한 경우, "학술대회 확장 게재 정보"를 반드시 기입<br>
+・ (학술대회논문) 포스터 논문에서 포스터에 사사표기한 경우, "사사표기 위치"를 정확히 선택
+</td></tr>
+<tr><td>수상<br>자격증<br>인턴쉽</td><td>
+・ 사업비 지원 여부와 관계없이, 현재 수혜받고 있는 사업이 있다면 표시 대상<br>
+・ 여러 사업 중 하나라도 수혜받고 있다면 모두 작성 대상<br>
+・ (수상) 팀 수상은 성과 1건으로 등록, 수상자 전원 입력. 특성화 수혜 학생만 이름 옆 토글에서 "해당"으로 표시하면 증빙이 자동 복사됨
+</td></tr>
+<tr><td>특허<br>저작권<br>프로그램</td><td>
+・ 서류상 사사표기된 사업에 표시<br>
+・ 저작권/프로그램은 서류상 사사표기 확인이 어려우면 본인이 수혜받고 있는 사업에 표시
+</td></tr>
+</table>
+
+<h3>비고</h3>
+<table class="guide-table">
+<tr><td class="num">1</td><td>사사표기가 있어야 연구비 지원이 가능합니다. (정보보호특성화 수혜 학생은 해당 없음)</td></tr>
+<tr><td class="num">2</td><td>사사표기는 지도교수님과 상의하여 작성해주세요.</td></tr>
+</table>
+
+<h3>성과 입력 기간</h3>
+<table class="guide-table">
+<tr><td class="num">1</td><td>기본적으로 매달 말 또는 매달 초, 발생한 성과를 상시 입력합니다.</td></tr>
+<tr><td class="num">2</td><td>집중 입력 기간 외에도 협회·기관 요청에 따라 짧은 기간 내 입력이 요청될 수 있습니다.</td></tr>
+<tr><td class="num">3</td><td>집중 입력 기간: 연말 / 중간평가(보고) 전 / 연초</td></tr>
+</table>
+
+<h3>증빙 업로드 규칙</h3>
+<table class="guide-table">
+<tr><td class="num">1</td><td>업로드 파일은 PDF로 통일해주세요.</td></tr>
+</table>
+`;
+
+const GUIDE_EVIDENCE = `
+<h3>성과 항목별 필요 증빙</h3>
+<table class="guide-table narrow">
+<thead><tr><th>항목</th><th>구분</th><th>필요 서류</th></tr></thead>
+<tr><td rowspan="2">저널논문</td><td>SCI(E)</td><td>논문 원본, 톰슨요약문, Web of Science 캡쳐본 중 택1</td></tr>
+<tr><td>비SCI(E) / KCI / Scopus</td><td>논문 원본, 출판·발표일자/저자/사사 등을 확인할 수 있는 자료</td></tr>
+<tr><td rowspan="2">학술대회논문</td><td>구두발표</td><td>논문 원본, 발표자료</td></tr>
+<tr><td>포스터 발표</td><td>논문 원본, 포스터 — <b>두 가지 모두 업로드 필수</b></td></tr>
+<tr><td>수상</td><td>—</td><td>상장 스캔본</td></tr>
+<tr><td>자격증</td><td>—</td><td>자격증 사본</td></tr>
+<tr><td>인턴쉽</td><td>—</td><td>인턴쉽 증명서, 재직증명서, 건강보험자격확인서 등 실제 근무 활동을 확인할 수 있는 자료<br><span style="color:var(--danger)">※ 합격 통보 문자, 알림톡 등은 증빙으로 사용 불가</span></td></tr>
+<tr><td rowspan="4">특허</td><td>국내 출원</td><td>특허번호통지서 + 특허출원서, 특허출원공보, 전자출원 접수증 등</td></tr>
+<tr><td>국내 등록</td><td>특허등록증, 특허등록공보</td></tr>
+<tr><td>국외 출원</td><td>특허번호통지서, 특허출원공보</td></tr>
+<tr><td>국외 등록</td><td>특허등록증, 특허등록공보, 특허등록 결정서</td></tr>
+<tr><td>저작권/프로그램</td><td>—</td><td>저작권/프로그램 등록증</td></tr>
+</table>
+
+<h3>공통 규칙</h3>
+<table class="guide-table">
+<tr><td class="num">1</td><td>업로드 파일은 PDF로 통일해주세요.</td></tr>
+<tr><td class="num">2</td><td>필수 업로드 슬롯은 1개이며, 서류가 여러 개 필요한 경우 "파일 추가" 버튼으로 늘려주세요. 각 파일마다 "문서 종류"를 함께 선택해야 합니다.</td></tr>
+</table>
+`;
+
+const GUIDE_ACK = `
+<h3>필독사항</h3>
+<table class="guide-table">
+<tr><td class="num">1</td><td>사사표기가 있어야 연구비 지원이 가능합니다.</td></tr>
+<tr><td class="num">2</td><td>사사표기는 지도교수님과 상의하여 작성해주세요.</td></tr>
+</table>
+
+<h3>단독 표기 (사업 1개만 해당)</h3>
+<table class="guide-table narrow">
+<thead><tr><th>사업명</th><th>국문</th><th>영문</th></tr></thead>
+<tr><td>정보보호특성화</td><td colspan="2">사사표기가 없어도 무방하나, 수혜 학생이 직접 작성한 논문이어야 합니다.</td></tr>
+<tr><td>첨단산업</td><td>이 논문은 2026년도 정부(산업통상자원부)의 재원으로 한국산업기술진흥원의 지원을 받아 수행된 연구임 (RS-2024-00415520, 2026년 산업혁신인재성장지원사업).</td><td>This paper was supported by Korea Institute for Advancement of Technology (KIAT) grant funded by the Korea Government(MOTIE) (RS-2024-00415520, Training Industrial Security Specialist for High-Tech Industry).</td></tr>
+<tr><td>ICT 혁신인재</td><td>본 연구는 2026년도 과학기술정보통신부 및 정보통신기획평가원(IITP)의 정보통신방송혁신인재양성사업(ICT 혁신인재 4.0) 지원을 받아 수행된 연구임(IITP-2022-RS-2022-00156310).</td><td>This work was supported by the ICT Innovation Talent 4.0 Program through IITP funded by the Korea government (MSIT) (IITP-2022-RS-2022-00156310).</td></tr>
+<tr><td>에어갭</td><td>본 연구는 2026년도 과학기술정보통신부 및 정보통신기획평가원(IITP)의 정보통신핵심원천기술개발사업 지원을 받아 수행된 연구임(RS-2024-00437252).</td><td>This work was supported by the Core ICT Technology Development Program through IITP funded by the Korea government (MSIT) (RS-2024-00437252).</td></tr>
+<tr><td>중견연구</td><td>본 논문은 2026년도 정부(과학기술정보통신부)의 재원으로 한국연구재단의 지원을 받아 수행된 중견연구(우수중견연구)의 연구 결과임 (RS-2025-00518150).</td><td>This research was supported by the National Research Foundation of Korea (NRF) grant funded by the Korea government (MSIT) (RS-2025-00518150).</td></tr>
+<tr><td>콘텐츠 디지털포렌식</td><td>본 연구는 문화체육관광부 및 한국콘텐츠진흥원의 2026년도 문화기술 연구개발사업으로 수행되었음 (과제명: 콘텐츠 불법스트리밍 침해분석 디지털포렌식 인력양성 사업단, 과제번호: RS-2026-25513329, 기여율: 00%)</td><td>This research was supported by Culture, Sports and Tourism R&D Program through the Korea Creative Content Agency grant funded by the Ministry of Culture, Sports and Tourism in 2026 (Project Name: Content Illegal Streaming Infringement Analysis Digital Forensics Human Resource Development Center, Project Number: RS-2026-25513329, Contribution Rate: 00%)</td></tr>
+</table>
+
+<h3>이중 / 삼중 / 사중 표기</h3>
+<table class="guide-table narrow">
+<thead><tr><th>구분</th><th>국문</th><th>영문</th></tr></thead>
+<tr><td>이중</td><td>본 논문은 OOO 및 OOO의 OOO 사업(No. OOO)과 OOO 및 OOO의 OOO 사업의 연구 결과로 수행되었음 (No. OOO).</td><td>This work is supported by OOO under the OOO program (No. OOO) supervised by OOO, and OOO under the OOO program (No. OOO) supervised by OOO.</td></tr>
+<tr><td>삼중</td><td>본 논문은 OOO년도 OOO 및 OOO의 OOO 사업(No. OOO)과 OOO 및 OOO의 OOO 사업(No. OOO)과 OOO 및 OOO의 OOO 사업(No. OOO)의 연구결과로 수행되었음.</td><td>This work was supported by OOO under the OOO program (No. OOO) supervised by OOO, and OOO under the OOO program (No. OOO) and OOO program (No. OOO) supervised by OOO.</td></tr>
+<tr><td>사중</td><td>본 논문은 OOO년도 OOO 및 OOO의 OOO 사업(No. OOO)과 OOO 및 OOO의 OOO 사업(No. OOO)과 OOO 및 OOO의 OOO 사업(No. OOO)과 OOO 및 OOO의 OOO 사업(No. OOO)의 연구결과로 수행되었음.</td><td>This work was supported by OOO under the OOO program (No. OOO) supervised by OOO, OOO under the OOO program (No. OOO) supervised by OOO, and OOO under the OOO program (No. OOO) and OOO program (No. OOO) supervised by OOO.</td></tr>
+</table>
+
+<h3>과제정보</h3>
+<table class="guide-table">
+<thead><tr><th>사업명</th><th>과제번호</th><th>지원기관</th><th>연구기간</th></tr></thead>
+<tr><td>특성화</td><td>-</td><td>과기정통부, KISA</td><td>2022.07.01~2027.12.31</td></tr>
+<tr><td>ICT혁신인재</td><td>IITP-2022-RS-2022-00156310</td><td>과기정통부, IITP</td><td>2022.07.01~2026.12.31</td></tr>
+<tr><td>첨단산업</td><td>RS-2024-00415520</td><td>산자부, KIAT</td><td>2024.03.01~2029.02.28</td></tr>
+<tr><td>에어갭</td><td>RS-2024-00437252</td><td>과기정통부, IITP</td><td>2024.06.01~2026.12.31</td></tr>
+<tr><td>중견연구</td><td>RS-2025-00518150</td><td>과기정통부, NRF</td><td>2025.03.01~2028.02.29</td></tr>
+<tr><td>콘텐츠 디지털포렌식</td><td>RS-2026-25513329</td><td>문체부, 한국콘텐츠진흥원</td><td>2026.04.01~2029.12.31</td></tr>
+</table>
+`;
+
+function renderGuide(which){
+  const map = { reg: GUIDE_REG, evidence: GUIDE_EVIDENCE, ack: GUIDE_ACK };
+  document.getElementById('guide-body').innerHTML = map[which] || GUIDE_REG;
+}
+document.querySelectorAll('.guide-tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.guide-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderGuide(btn.dataset.g);
+  });
+});
+
+/* ============ 네비게이션 ============ */
+function switchPage(page){
+  document.getElementById('page-form').style.display = page==='form'?'block':'none';
+  document.getElementById('page-list').style.display = page==='list'?'block':'none';
+  document.getElementById('page-guide').style.display = page==='guide'?'block':'none';
+  document.getElementById('nav-form').classList.toggle('active', page==='form');
+  document.getElementById('nav-list').classList.toggle('active', page==='list');
+  document.getElementById('nav-guide').classList.toggle('active', page==='guide');
+  if(page==='list') renderList();
+  if(page==='guide') renderGuide('reg');
+}
+document.getElementById('nav-form').addEventListener('click', ()=>switchPage('form'));
+document.getElementById('nav-list').addEventListener('click', ()=>switchPage('list'));
+document.getElementById('nav-guide').addEventListener('click', ()=>switchPage('guide'));
+
+/* ============ 초기화 ============ */
+renderTypeTabs();
+renderFields();
+renderListFilters();
+</script>
+</body>
+</html>
