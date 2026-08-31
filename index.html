@@ -223,7 +223,7 @@ const NONCOUNT = ['정보보호특성화(수혜)','기술보호(수혜)']; // AC
 const DEGREES = ['학사과정','석사과정','박사과정','박사후연구원'];
 
 /* ============ API 연동 (GitHub Pages -> GAS fetch) ============ */
-const API_BASE_URL = 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE'; // 배포된 GAS 웹앱의 /exec 주소로 교체하세요
+const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbzLK_c6C8nXQbm2TpOytjrzYhjTCFkcfE8GtFpjIa5YMklf_lD327Yv9GnHbDfJuQHWKQ/exec'; // 배포된 GAS 웹앱의 /exec 주소로 교체하세요
 let currentMember = null; // { name, email, degree }
 
 function apiCall(action, extra){
