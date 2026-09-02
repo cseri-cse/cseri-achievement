@@ -145,10 +145,10 @@
 <div id="identify-gate" style="position:fixed;inset:0;background:#F6F6F2;z-index:50;display:flex;align-items:center;justify-content:center;">
   <div style="background:#fff;border:1px solid #E1E1DA;border-radius:12px;padding:36px 34px;max-width:360px;width:90%;text-align:center;">
     <div style="font-family:'Noto Serif KR',serif;font-weight:700;font-size:18px;color:#1F4E5F;margin-bottom:6px;">CSERI 성과관리</div>
-    <p style="font-size:13px;color:#6B7280;margin:0 0 20px;">등록된 이메일을 입력해주세요.</p>
-    <input type="text" id="gate-email" placeholder="you@sungshin.ac.kr" style="width:100%;padding:10px 12px;border:1px solid #E1E1DA;border-radius:7px;font-size:13.5px;margin-bottom:10px;">
+    <p style="font-size:13px;color:#6B7280;margin:0 0 20px;">등록된 학번을 입력해주세요.</p>
+    <input type="text" id="gate-email" placeholder="학번을 입력해주세요" style="width:100%;padding:10px 12px;border:1px solid #E1E1DA;border-radius:7px;font-size:13.5px;margin-bottom:10px;">
     <button id="gate-confirm" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:11px;background:#1F4E5F;color:#fff;border-radius:8px;font-size:13.5px;font-weight:600;text-align:center;">확인</button>
-    <p id="gate-error" style="display:none;color:#B3432F;font-size:12px;margin-top:10px;">등록되지 않은 이메일입니다. 관리자에게 등록을 요청해주세요.</p>
+    <p id="gate-error" style="display:none;color:#B3432F;font-size:12px;margin-top:10px;">등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.</p>
   </div>
 </div>
 <div class="app">
@@ -190,6 +190,7 @@
           <select id="f-type"><option value="">전체 유형</option></select>
           <select id="f-biz"><option value="">전체 사업</option></select>
           <input id="f-search" type="text" placeholder="제목 · 작성자 검색">
+          <button class="btn btn-primary" id="search-btn" style="padding:8px 14px;font-size:12.5px;flex:none;white-space:nowrap;">🔍 검색</button>
           <button class="btn btn-primary" id="download-btn" style="padding:8px 14px;font-size:12.5px;flex:none;white-space:nowrap;">⬇ 엑셀 다운로드</button>
         </div>
         <div class="count-badge" id="list-count"></div>
@@ -223,7 +224,7 @@ const NONCOUNT = ['정보보호특성화(수혜)','기술보호(수혜)']; // AC
 const DEGREES = ['학사과정','석사과정','박사과정','박사후연구원'];
 
 /* ============ API 연동 (GitHub Pages -> GAS fetch) ============ */
-const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbzLK_c6C8nXQbm2TpOytjrzYhjTCFkcfE8GtFpjIa5YMklf_lD327Yv9GnHbDfJuQHWKQ/exec'; // 배포된 GAS 웹앱의 /exec 주소로 교체하세요
+const API_BASE_URL = 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE'; // 배포된 GAS 웹앱의 /exec 주소로 교체하세요
 let currentMember = null; // { name, email, degree }
 
 function apiCall(action, extra){
@@ -246,30 +247,30 @@ function applyMember(member){
   currentMember = member;
   document.getElementById('whoami-name').textContent = member.name;
   document.getElementById('whoami-degree').textContent = member.degree || '';
-  document.getElementById('whoami-email').textContent = member.email;
-  localStorage.setItem('cseri_member_email', member.email);
+  document.getElementById('whoami-email').textContent = member.studentId;
+  localStorage.setItem('cseri_member_studentid', member.studentId);
   hideGate();
 }
 
 document.getElementById('gate-confirm').addEventListener('click', ()=>{
-  const email = document.getElementById('gate-email').value.trim();
-  if(!email){ showGate('이메일을 입력해주세요.'); return; }
-  apiCall('verifyMember', { email }).then(res=>{
+  const studentId = document.getElementById('gate-email').value.trim();
+  if(!studentId){ showGate('학번을 입력해주세요.'); return; }
+  apiCall('verifyMember', { studentId }).then(res=>{
     if(res.found){ applyMember(res); }
-    else { showGate('등록되지 않은 이메일입니다. 관리자에게 등록을 요청해주세요.'); }
+    else { showGate('등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.'); }
   }).catch(()=> showGate('서버에 연결할 수 없습니다. API_BASE_URL 설정을 확인해주세요.'));
 });
 document.getElementById('whoami-switch').addEventListener('click', (e)=>{
   e.preventDefault();
-  localStorage.removeItem('cseri_member_email');
+  localStorage.removeItem('cseri_member_studentid');
   document.getElementById('gate-email').value = '';
   showGate();
 });
 document.getElementById('brand-home').addEventListener('click', ()=> switchPage('form'));
 
-// 저장된 이메일이 있으면 입력창에 채워만 두고, 실제 로그인은 반드시 "확인" 버튼을 눌러야 진행됩니다.
+// 저장된 학번이 있으면 입력창에 채워만 두고, 실제 로그인은 반드시 "확인" 버튼을 눌러야 진행됩니다.
 (function initGate(){
-  const saved = localStorage.getItem('cseri_member_email');
+  const saved = localStorage.getItem('cseri_member_studentid');
   if(saved){ document.getElementById('gate-email').value = saved; }
   showGate();
 })();
@@ -917,7 +918,7 @@ document.getElementById('submit-btn').addEventListener('click', ()=>{
   if(!currentMember){ showGate('먼저 이메일을 확인해주세요.'); return; }
 
   const payload = buildPayload();
-  payload.member = { email: currentMember.email };
+  payload.member = { studentId: currentMember.studentId };
 
   const validUploads = uploads.filter(u => u.file && u.docType);
   if(validUploads.length===0){
@@ -1020,6 +1021,8 @@ function fetchAchievementList(){
 document.getElementById('f-type').addEventListener('change', renderList);
 document.getElementById('f-biz').addEventListener('change', renderList);
 document.getElementById('f-search').addEventListener('input', renderList);
+document.getElementById('search-btn').addEventListener('click', renderList);
+document.getElementById('f-search').addEventListener('keydown', (e)=>{ if(e.key==='Enter') renderList(); });
 
 document.getElementById('download-btn').addEventListener('click', ()=>{
   const filtered = getFilteredEntries();
