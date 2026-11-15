@@ -140,11 +140,14 @@
   .guide-table td.num{color:var(--ink-muted);width:28px;font-family:'IBM Plex Mono',monospace;font-size:11px;}
   .guide-table tr:last-child td{border-bottom:1px solid var(--border);}
   .guide-table.narrow td:first-child, .guide-table.narrow th:first-child{width:130px;font-weight:600;color:var(--primary-dark);}
-  .adm-row{display:grid;grid-template-columns:78px 1fr 110px 88px;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;}
+  .adm-row{display:grid;grid-template-columns:120px minmax(0,1fr) 130px 84px;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;}
   .adm-row:hover{background:var(--primary-tint);}
   .adm-row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .adm-row small{color:var(--ink-muted);display:block;font-size:11px;}
-  .st{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;text-align:center;}
+  .st{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;text-align:center;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;}
+  .adm-row.head{cursor:default;font-weight:600;font-size:12px;color:var(--ink-muted);background:var(--surface-2);border-bottom:1px solid var(--border);}
+  .adm-row.head:hover{background:var(--surface-2);}
+  .adm-row>span:first-child{white-space:nowrap;}
   .st.s0{background:var(--gold-tint);color:var(--gold);} .st.s1{background:var(--sage-tint);color:var(--sage);} .st.s2{background:var(--danger-tint);color:var(--danger);}
   #adm-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:none;align-items:center;justify-content:center;}
   #adm-modal .box{background:#fff;border-radius:12px;width:min(640px,94%);max-height:90vh;overflow:auto;padding:22px 24px;}
@@ -152,7 +155,7 @@
   #adm-modal td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top;word-break:break-all;}
   #adm-modal td:first-child{width:140px;color:var(--ink-muted);}
   #adm-modal textarea,#adm-modal select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;margin-top:4px;}
-  @media(max-width:700px){.adm-row{grid-template-columns:60px 1fr 70px;} .adm-row .d{display:none;}}
+  @media(max-width:700px){.adm-row{grid-template-columns:90px minmax(0,1fr) 78px;} .adm-row .d{display:none;}}
 </style>
 </head>
 <body>
@@ -1260,7 +1263,8 @@ function renderAdminList(){
     (!q || [it.title,it.author,it.studentId].join(' ').toLowerCase().includes(q)));
   const pending = adminItems.filter(it=>it.status==='확인전').length;
   document.getElementById('a-count').textContent = '총 '+rows.length+'건 (전체 '+adminItems.length+'건 · 확인전 '+pending+'건)';
-  document.getElementById('a-wrap').innerHTML = rows.length ? rows.map(it=>
+  const head = '<div class="adm-row head"><span>구분</span><span>제목 / 작성자</span><span class="d">제출일시</span><span>상태</span></div>';
+  document.getElementById('a-wrap').innerHTML = rows.length ? head + rows.map(it=>
     '<div class="adm-row" data-t="'+esc(it.typeKey)+'" data-r="'+it.row+'">'+
       '<span>'+esc(TYPE_NAMES[it.typeKey])+'</span>'+
       '<span class="t">'+esc(it.title||'(제목 없음)')+'<small>'+esc(it.author)+' · '+esc(it.studentId)+'</small></span>'+
