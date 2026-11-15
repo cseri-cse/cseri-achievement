@@ -6,6 +6,7 @@
 <title>CSERI 성과관리</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -139,6 +140,19 @@
   .guide-table td.num{color:var(--ink-muted);width:28px;font-family:'IBM Plex Mono',monospace;font-size:11px;}
   .guide-table tr:last-child td{border-bottom:1px solid var(--border);}
   .guide-table.narrow td:first-child, .guide-table.narrow th:first-child{width:130px;font-weight:600;color:var(--primary-dark);}
+  .adm-row{display:grid;grid-template-columns:78px 1fr 110px 88px;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;}
+  .adm-row:hover{background:var(--primary-tint);}
+  .adm-row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .adm-row small{color:var(--ink-muted);display:block;font-size:11px;}
+  .st{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;text-align:center;}
+  .st.s0{background:var(--gold-tint);color:var(--gold);} .st.s1{background:var(--sage-tint);color:var(--sage);} .st.s2{background:var(--danger-tint);color:var(--danger);}
+  #adm-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:none;align-items:center;justify-content:center;}
+  #adm-modal .box{background:#fff;border-radius:12px;width:min(640px,94%);max-height:90vh;overflow:auto;padding:22px 24px;}
+  #adm-modal table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px;}
+  #adm-modal td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top;word-break:break-all;}
+  #adm-modal td:first-child{width:140px;color:var(--ink-muted);}
+  #adm-modal textarea,#adm-modal select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;margin-top:4px;}
+  @media(max-width:700px){.adm-row{grid-template-columns:60px 1fr 70px;} .adm-row .d{display:none;}}
 </style>
 </head>
 <body>
@@ -151,6 +165,7 @@
     <p id="gate-error" style="display:none;color:#B3432F;font-size:12px;margin-top:10px;">등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.</p>
   </div>
 </div>
+<div id="adm-modal"><div class="box" id="adm-box"></div></div>
 <div class="app">
   <aside class="sidebar">
     <div class="brand" id="brand-home" style="cursor:pointer;">CSERI 성과관리<small>융합보안공학연구소</small></div>
@@ -158,6 +173,7 @@
       <button id="nav-guide"><span class="dot"></span>이용 안내</button>
       <button id="nav-form" class="active"><span class="dot"></span>성과 등록</button>
       <button id="nav-list"><span class="dot"></span>성과 목록</button>
+      <button id="nav-admin" style="display:none"><span class="dot"></span>승인 관리</button>
     </nav>
     <div class="whoami"><b id="whoami-name">-</b><span id="whoami-degree"></span> · <a href="#" id="whoami-switch" style="color:#9FB3BB;text-decoration:underline;">계정 전환</a><br><span class="mono" style="font-size:10.5px" id="whoami-email"></span></div>
   </aside>
@@ -198,6 +214,20 @@
       </div>
     </section>
 
+    <section id="page-admin" style="display:none">
+      <div class="page-head"><h1>승인 관리</h1><p>제출된 성과를 확인하고 승인(이상없음) 또는 보완요청 메일을 보냅니다.</p></div>
+      <div class="card">
+        <div class="filters">
+          <select id="a-status"><option value="">전체 상태</option><option>확인전</option><option>이상없음</option><option>보완요청</option></select>
+          <select id="a-type"><option value="">전체 유형</option></select>
+          <input id="a-search" type="text" placeholder="제목 · 작성자 · 학번 검색">
+          <button class="btn btn-primary" id="a-refresh" style="padding:8px 14px;font-size:12.5px;flex:none;white-space:nowrap;">↻ 새로고침</button>
+        </div>
+        <div class="count-badge" id="a-count"></div>
+        <div id="a-wrap"></div>
+      </div>
+    </section>
+
     <section id="page-guide" style="display:none">
       <div class="page-head"><h1>이용 안내</h1><p>성과 등록 방법과 사사표기 방법을 확인하세요.</p></div>
       <div class="card">
@@ -224,8 +254,11 @@ const NONCOUNT = ['정보보호특성화(수혜)','기술보호(수혜)']; // AC
 const DEGREES = ['학사과정','석사과정','박사과정','박사후연구원'];
 
 /* ============ API 연동 (GitHub Pages -> GAS fetch) ============ */
-const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbzLK_c6C8nXQbm2TpOytjrzYhjTCFkcfE8GtFpjIa5YMklf_lD327Yv9GnHbDfJuQHWKQ/exec'; // 배포된 GAS 웹앱의 /exec 주소로 교체하세요
+// 실제 /exec 주소는 config.js 에 한 번만 적어두면 됩니다. (index.html을 새로 덮어써도 유지)
+const API_BASE_URL = window.CSERI_API_URL || 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE';
 let currentMember = null; // { name, email, degree }
+let adminCode = null;     // 관리자 번호: 메모리에만 보관 (저장소·localStorage에 절대 저장 안 함)
+function isAdmin(){ return !!adminCode; }
 
 function apiCall(action, extra){
   const body = Object.assign({ action }, extra);
@@ -243,30 +276,40 @@ function showGate(errorMsg){
 }
 function hideGate(){ document.getElementById('identify-gate').style.display = 'none'; }
 
-function applyMember(member){
+function applyMember(member, typedCode){
   currentMember = member;
+  adminCode = member.admin ? typedCode : null;
   document.getElementById('whoami-name').textContent = member.name;
   document.getElementById('whoami-degree').textContent = member.degree || '';
-  document.getElementById('whoami-email').textContent = member.studentId;
-  localStorage.setItem('cseri_member_studentid', member.studentId);
+  document.getElementById('whoami-email').textContent = member.admin ? '관리자 모드' : member.studentId;
+  if(member.admin){ localStorage.removeItem('cseri_member_studentid'); }
+  else { localStorage.setItem('cseri_member_studentid', member.studentId); }
+  document.getElementById('nav-admin').style.display = member.admin ? '' : 'none';
+  document.getElementById('nav-form').style.display = member.admin ? 'none' : '';
+  document.getElementById('gate-email').value = '';
   hideGate();
+  switchPage(member.admin ? 'admin' : 'form');
 }
 
 document.getElementById('gate-confirm').addEventListener('click', ()=>{
   const studentId = document.getElementById('gate-email').value.trim();
   if(!studentId){ showGate('학번을 입력해주세요.'); return; }
   apiCall('verifyMember', { studentId }).then(res=>{
-    if(res.found){ applyMember(res); }
+    if(res.found){ applyMember(res, studentId); }
+    else if(res.locked){ showGate('시도 횟수가 많아 잠시 잠겼습니다. 10분 뒤 다시 시도해주세요.'); }
     else { showGate('등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.'); }
   }).catch(()=> showGate('서버에 연결할 수 없습니다. API_BASE_URL 설정을 확인해주세요.'));
 });
 document.getElementById('whoami-switch').addEventListener('click', (e)=>{
   e.preventDefault();
   localStorage.removeItem('cseri_member_studentid');
+  adminCode = null; currentMember = null;
+  document.getElementById('nav-admin').style.display = 'none';
+  document.getElementById('nav-form').style.display = '';
   document.getElementById('gate-email').value = '';
   showGate();
 });
-document.getElementById('brand-home').addEventListener('click', ()=> switchPage('form'));
+document.getElementById('brand-home').addEventListener('click', ()=> switchPage(isAdmin() ? 'admin' : 'form'));
 
 // 저장된 학번이 있으면 입력창에 채워만 두고, 실제 로그인은 반드시 "확인" 버튼을 눌러야 진행됩니다.
 (function initGate(){
@@ -1172,15 +1215,118 @@ function switchPage(page){
   document.getElementById('page-form').style.display = page==='form'?'block':'none';
   document.getElementById('page-list').style.display = page==='list'?'block':'none';
   document.getElementById('page-guide').style.display = page==='guide'?'block':'none';
+  document.getElementById('page-admin').style.display = page==='admin'?'block':'none';
+  document.getElementById('nav-admin').classList.toggle('active', page==='admin');
   document.getElementById('nav-form').classList.toggle('active', page==='form');
   document.getElementById('nav-list').classList.toggle('active', page==='list');
   document.getElementById('nav-guide').classList.toggle('active', page==='guide');
   if(page==='list') fetchAchievementList();
   if(page==='guide') renderGuide('reg');
+  if(page==='admin') loadAdminList();
 }
+document.getElementById('nav-admin').addEventListener('click', ()=>switchPage('admin'));
 document.getElementById('nav-form').addEventListener('click', ()=>switchPage('form'));
 document.getElementById('nav-list').addEventListener('click', ()=>switchPage('list'));
 document.getElementById('nav-guide').addEventListener('click', ()=>switchPage('guide'));
+
+/* ============ 관리자 모드 ============ */
+let adminItems = [];
+const TYPE_NAMES = { journal:'저널논문', conference:'학술대회논문', award:'수상', cert:'자격증', intern:'인턴쉽', patent:'특허·저작권·프로그램' };
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stClass(st){ return st==='이상없음'?'s1':(st==='보완요청'?'s2':'s0'); }
+function adminCall(action, extra){
+  if(!isAdmin()) return Promise.reject(new Error('관리자 로그인이 필요합니다.'));
+  return apiCall(action, Object.assign({ adminCode }, extra)).then(res=>{
+    if(res && res.success === false) throw new Error(res.error || '요청 실패');
+    return res;
+  });
+}
+(function initAdminFilters(){
+  const sel = document.getElementById('a-type');
+  Object.keys(TYPE_NAMES).forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=TYPE_NAMES[k]; sel.appendChild(o); });
+})();
+function loadAdminList(){
+  const wrap = document.getElementById('a-wrap');
+  wrap.innerHTML = '<p style="padding:16px;color:var(--ink-muted)">불러오는 중...</p>';
+  adminCall('adminList').then(res=>{ adminItems = res.items || []; renderAdminList(); })
+    .catch(err=>{ wrap.innerHTML = '<p style="padding:16px;color:var(--danger)">'+esc(err.message)+'</p>'; });
+}
+function renderAdminList(){
+  const st = document.getElementById('a-status').value;
+  const ty = document.getElementById('a-type').value;
+  const q = document.getElementById('a-search').value.trim().toLowerCase();
+  const rows = adminItems.filter(it=>
+    (!st || it.status===st) && (!ty || it.typeKey===ty) &&
+    (!q || [it.title,it.author,it.studentId].join(' ').toLowerCase().includes(q)));
+  const pending = adminItems.filter(it=>it.status==='확인전').length;
+  document.getElementById('a-count').textContent = '총 '+rows.length+'건 (전체 '+adminItems.length+'건 · 확인전 '+pending+'건)';
+  document.getElementById('a-wrap').innerHTML = rows.length ? rows.map(it=>
+    '<div class="adm-row" data-t="'+esc(it.typeKey)+'" data-r="'+it.row+'">'+
+      '<span>'+esc(TYPE_NAMES[it.typeKey])+'</span>'+
+      '<span class="t">'+esc(it.title||'(제목 없음)')+'<small>'+esc(it.author)+' · '+esc(it.studentId)+'</small></span>'+
+      '<span class="d">'+esc(it.date)+'</span>'+
+      '<span class="st '+stClass(it.status)+'">'+esc(it.status)+'</span></div>').join('')
+    : '<p style="padding:16px;color:var(--ink-muted)">해당하는 항목이 없습니다.</p>';
+}
+['a-status','a-type'].forEach(id=>document.getElementById(id).addEventListener('change', renderAdminList));
+document.getElementById('a-search').addEventListener('input', renderAdminList);
+document.getElementById('a-refresh').addEventListener('click', loadAdminList);
+document.getElementById('a-wrap').addEventListener('click', e=>{
+  const row = e.target.closest('.adm-row'); if(!row) return;
+  openAdminDetail(row.dataset.t, Number(row.dataset.r));
+});
+function closeAdminModal(){ document.getElementById('adm-modal').style.display='none'; }
+document.getElementById('adm-modal').addEventListener('click', e=>{ if(e.target.id==='adm-modal') closeAdminModal(); });
+
+function openAdminDetail(typeKey, row){
+  const item = adminItems.find(it=>it.typeKey===typeKey && it.row===row) || {};
+  const box = document.getElementById('adm-box');
+  document.getElementById('adm-modal').style.display = 'flex';
+  box.innerHTML = '<p style="color:var(--ink-muted)">불러오는 중...</p>';
+  adminCall('adminDetail', { typeKey, row }).then(res=>{
+    const fields = res.fields.map(f=>'<tr><td>'+esc(f.label)+'</td><td>'+esc(f.value)+'</td></tr>').join('');
+    const ev = res.evidence.length ? res.evidence.map(e=>
+      '<li style="margin:4px 0">'+esc(e.docType)+' — '+(e.link
+        ? '<a href="'+esc(e.link)+'" target="_blank" rel="noopener">열기 ↗</a>'
+        : '<span style="color:var(--danger)">'+esc(e.error||'링크 없음')+'</span>')+
+      ' <span style="color:var(--ink-muted);font-size:11px">'+esc(e.path.split('/').pop())+'</span></li>').join('')
+      : '<li style="color:var(--ink-muted)">첨부된 증빙이 없습니다.</li>';
+    box.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+        '<h2 style="margin:0;font-size:16px">'+esc(TYPE_NAMES[typeKey])+' · <span class="st '+stClass(item.status)+'">'+esc(item.status||'')+'</span></h2>'+
+        '<button class="btn btn-ghost" id="adm-close" style="padding:4px 10px">닫기</button></div>'+
+      '<table>'+fields+'</table>'+
+      '<h3 style="font-size:13px;margin:0 0 6px">증빙 자료 <small style="color:var(--ink-muted);font-weight:400">(링크는 약 4시간 유효)</small></h3><ul style="margin:0 0 16px;padding-left:18px;font-size:13px">'+ev+'</ul>'+
+      '<div style="border-top:1px solid var(--border);padding-top:14px">'+
+        '<button class="btn btn-primary" id="adm-approve" style="margin-right:6px">✔ 이상없음 (승인)</button>'+
+        (item.status==='이상없음' ? '<button class="btn btn-ghost" id="adm-revert">확인전으로 되돌리기</button>' : '')+
+      '</div>'+
+      '<div style="margin-top:16px;padding:14px;background:var(--surface-2);border-radius:8px">'+
+        '<b style="font-size:13px">보완요청 메일 보내기</b> <small style="color:var(--ink-muted)">→ '+esc(item.author||'')+'님에게 발송</small>'+
+        '<select id="adm-reason"><option value="evidence">증빙 자료 보완</option><option value="content">입력 내용 보완</option><option value="etc">기타</option></select>'+
+        '<textarea id="adm-comment" rows="4" placeholder="학생에게 그대로 전달됩니다. 예) 상장 스캔본이 흐릿합니다. 다시 첨부해주세요."></textarea>'+
+        '<button class="btn btn-primary" id="adm-supp" style="margin-top:8px;background:var(--danger)">보완요청 메일 발송</button>'+
+      '</div><p id="adm-msg" style="color:var(--danger);font-size:12px;min-height:16px;margin:10px 0 0"></p>';
+    const msg = t=>{ document.getElementById('adm-msg').textContent = t; };
+    const done = status=>{ item.status = status; renderAdminList(); closeAdminModal(); showToast('처리되었습니다: '+status); };
+    document.getElementById('adm-close').onclick = closeAdminModal;
+    document.getElementById('adm-approve').onclick = e=>{
+      e.target.disabled = true;
+      adminCall('adminSetStatus',{typeKey,row,status:'이상없음'}).then(()=>done('이상없음')).catch(er=>{ msg(er.message); e.target.disabled=false; });
+    };
+    const rv = document.getElementById('adm-revert');
+    if(rv) rv.onclick = ()=> adminCall('adminSetStatus',{typeKey,row,status:'확인전'}).then(()=>done('확인전')).catch(er=>msg(er.message));
+    document.getElementById('adm-supp').onclick = e=>{
+      const comment = document.getElementById('adm-comment').value.trim();
+      if(!comment){ msg('상세 내용을 입력해주세요.'); return; }
+      if(!confirm((item.author||'작성자')+'님에게 보완요청 메일을 보낼까요?')) return;
+      e.target.disabled = true; e.target.textContent = '보내는 중...';
+      adminCall('adminSendSupplement',{typeKey,row,reasonType:document.getElementById('adm-reason').value,comment})
+        .then(()=>done('보완요청'))
+        .catch(er=>{ msg(er.message); e.target.disabled=false; e.target.textContent='보완요청 메일 발송'; });
+    };
+  }).catch(err=>{ box.innerHTML = '<p style="color:var(--danger)">'+esc(err.message)+'</p><button class="btn btn-ghost" onclick="closeAdminModal()">닫기</button>'; });
+}
 
 /* ============ 초기화 ============ */
 renderTypeTabs();
