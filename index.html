@@ -192,6 +192,7 @@
     <nav class="nav">
       <button id="nav-guide"><span class="dot"></span>이용 안내</button>
       <button id="nav-form" class="active"><span class="dot"></span>성과 등록</button>
+      <button id="nav-mine"><span class="dot"></span>내 성과</button>
       <button id="nav-list"><span class="dot"></span>성과 목록</button>
       <button id="nav-admin" style="display:none"><span class="dot"></span>승인 관리</button>
     </nav>
@@ -231,6 +232,14 @@
         </div>
         <div class="count-badge" id="list-count"></div>
         <div id="list-wrap"></div>
+      </div>
+    </section>
+
+    <section id="page-mine" style="display:none">
+      <div class="page-head"><h1>내 성과</h1><p>내가 제출한 성과의 처리 상태를 확인할 수 있습니다. 보완요청을 받았다면 내용을 확인하고, 철회 후 다시 등록해주세요.</p></div>
+      <div class="card">
+        <div class="count-badge" id="m-count"></div>
+        <div id="m-wrap"></div>
       </div>
     </section>
 
@@ -310,6 +319,7 @@ function applyMember(member, typedCode){
   document.getElementById('gate-code-step').style.display = 'none';
   document.getElementById('gate-confirm').style.display = 'block';
   document.getElementById('nav-admin').style.display = member.admin ? '' : 'none';
+  document.getElementById('nav-mine').style.display = member.admin ? 'none' : '';
   document.getElementById('nav-form').style.display = member.admin ? 'none' : '';
   document.getElementById('gate-email').value = '';
   hideGate();
@@ -370,6 +380,7 @@ document.getElementById('whoami-switch').addEventListener('click', (e)=>{
   document.getElementById('gate-confirm').style.display = 'block';
   document.getElementById('gate-email').style.display = '';
   document.getElementById('nav-admin').style.display = 'none';
+  document.getElementById('nav-mine').style.display = '';
   document.getElementById('nav-form').style.display = '';
   document.getElementById('gate-email').value = '';
   showGate();
@@ -1288,6 +1299,8 @@ function switchPage(page){
   document.getElementById('page-list').style.display = page==='list'?'block':'none';
   document.getElementById('page-guide').style.display = page==='guide'?'block':'none';
   document.getElementById('page-admin').style.display = page==='admin'?'block':'none';
+  document.getElementById('page-mine').style.display = page==='mine'?'block':'none';
+  document.getElementById('nav-mine').classList.toggle('active', page==='mine');
   document.getElementById('nav-admin').classList.toggle('active', page==='admin');
   document.getElementById('nav-form').classList.toggle('active', page==='form');
   document.getElementById('nav-list').classList.toggle('active', page==='list');
@@ -1295,8 +1308,10 @@ function switchPage(page){
   if(page==='list') fetchAchievementList();
   if(page==='guide') renderGuide('reg');
   if(page==='admin') loadAdminList();
+  if(page==='mine') loadMine();
 }
 document.getElementById('nav-admin').addEventListener('click', ()=>switchPage('admin'));
+document.getElementById('nav-mine').addEventListener('click', ()=>switchPage('mine'));
 document.getElementById('nav-form').addEventListener('click', ()=>switchPage('form'));
 document.getElementById('nav-list').addEventListener('click', ()=>switchPage('list'));
 document.getElementById('nav-guide').addEventListener('click', ()=>switchPage('guide'));
@@ -1324,7 +1339,7 @@ function loadAdminList(){
 function renderAdminList(){
   const q = document.getElementById('a-search').value.trim().toLowerCase();
   // 시트의 설명용 예시 행(제출일시가 날짜가 아닌 행)은 제외
-  const base = adminItems.filter(it=> /^\d{4}-\d{2}-\d{2}/.test(it.date));
+  const base = adminItems.filter(it=> /^\d{4}-\d{2}-\d{2}/.test(it.date) && it.status!=='철회');
   base.forEach(it=>{ if(ST_LIST.indexOf(it.status)<0) it.status='확인전'; });
   const matchQ = it=> !q || [it.title,it.author,it.studentId].join(' ').toLowerCase().includes(q);
   const pend = arr=>arr.filter(it=>it.status==='확인전').length;
@@ -1422,6 +1437,70 @@ function openAdminDetail(typeKey, row){
         .catch(er=>{ msg(er.message); e.target.disabled=false; e.target.textContent='보완요청 메일 발송'; });
     };
   }).catch(err=>{ box.innerHTML = '<p style="color:var(--danger)">'+esc(err.message)+'</p><button class="btn btn-ghost" onclick="closeAdminModal()">닫기</button>'; });
+}
+
+/* ============ 내 성과 ============ */
+let mineItems = [];
+function mineCall(action, extra){
+  if(!sessionToken) return Promise.reject(new Error('먼저 로그인해주세요.'));
+  return apiCall(action, Object.assign({ token: sessionToken }, extra)).then(res=>{
+    if(res && res.success === false) throw new Error(res.error || '요청 실패');
+    return res;
+  });
+}
+function loadMine(){
+  const wrap = document.getElementById('m-wrap');
+  if(!sessionToken){ wrap.innerHTML = ''; return; }
+  wrap.innerHTML = '<p style="padding:16px;color:var(--ink-muted)">불러오는 중...</p>';
+  mineCall('myList').then(res=>{ mineItems = res.items || []; renderMine(); })
+    .catch(err=>{ wrap.innerHTML = '<p style="padding:16px;color:var(--danger)">'+esc(err.message)+'</p>'; });
+}
+function renderMine(){
+  document.getElementById('m-count').textContent = '총 '+mineItems.length+'건 (확인전 '+mineItems.filter(i=>i.status==='확인전').length+' · 보완요청 '+mineItems.filter(i=>i.status==='보완요청').length+' · 이상없음 '+mineItems.filter(i=>i.status==='이상없음').length+')';
+  const head = '<div class="adm-row head"><span>구분</span><span>제목</span><span class="d">제출일시</span><span>상태</span></div>';
+  document.getElementById('m-wrap').innerHTML = mineItems.length ? head + mineItems.map(it=>
+    '<div class="adm-row" data-t="'+esc(it.typeKey)+'" data-r="'+it.row+'">'+
+      '<span>'+esc(TYPE_NAMES[it.typeKey])+'</span>'+
+      '<span class="t">'+esc(it.title||'(제목 없음)')+(it.status==='보완요청'&&it.comment?'<small style="color:var(--danger)">'+esc(it.comment)+'</small>':'')+'</span>'+
+      '<span class="d">'+esc(it.date)+'</span>'+
+      '<span class="st '+stClass(it.status)+'">'+esc(it.status)+'</span></div>').join('')
+    : '<p style="padding:16px;color:var(--ink-muted)">아직 제출한 성과가 없습니다.</p>';
+}
+document.getElementById('m-wrap').addEventListener('click', e=>{
+  const row = e.target.closest('.adm-row'); if(!row || row.classList.contains('head')) return;
+  openMineDetail(row.dataset.t, Number(row.dataset.r));
+});
+function openMineDetail(typeKey, row){
+  const box = document.getElementById('adm-box');
+  document.getElementById('adm-modal').style.display = 'flex';
+  box.innerHTML = '<p style="color:var(--ink-muted)">불러오는 중...</p>';
+  mineCall('myDetail', { typeKey, row }).then(res=>{
+    const fields = res.fields.map(f=>'<tr><td>'+esc(f.label)+'</td><td>'+esc(f.value)+'</td></tr>').join('');
+    const ev = res.evidence.length ? res.evidence.map(e=>
+      '<li style="margin:4px 0">'+esc(e.docType)+' — '+(e.link?'<a href="'+esc(e.link)+'" target="_blank" rel="noopener">열기 ↗</a>':'<span style="color:var(--ink-muted)">'+esc(e.name)+'</span>')+'</li>').join('')
+      : '<li style="color:var(--ink-muted)">첨부된 증빙이 없습니다.</li>';
+    const canWithdraw = res.status !== '이상없음';
+    box.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+        '<h2 style="margin:0;font-size:16px">'+esc(TYPE_NAMES[typeKey])+' · <span class="st '+stClass(res.status)+'">'+esc(res.status)+'</span></h2>'+
+        '<button class="btn btn-ghost" id="mine-close" style="padding:4px 10px">닫기</button></div>'+
+      (res.status==='보완요청' && res.comment ? '<div style="background:var(--danger-tint);color:var(--danger);padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:12px"><b>관리자 요청 사항</b><br>'+esc(res.comment)+'</div>' : '')+
+      '<table>'+fields+'</table>'+
+      '<h3 style="font-size:13px;margin:0 0 6px">증빙 자료</h3><ul style="margin:0 0 16px;padding-left:18px;font-size:13px">'+ev+'</ul>'+
+      (canWithdraw
+        ? '<div style="border-top:1px solid var(--border);padding-top:14px"><p style="font-size:12.5px;color:var(--ink-muted);margin:0 0 8px">내용을 고치려면 이 항목을 철회한 뒤 <b>성과 등록</b>에서 다시 등록해주세요. 철회한 항목은 관리자 검토 대상에서 제외됩니다.</p>'+
+          '<button class="btn btn-primary" id="mine-withdraw" style="background:var(--danger)">이 성과 철회</button></div>'
+        : '<p style="font-size:12.5px;color:var(--ink-muted);border-top:1px solid var(--border);padding-top:12px;margin:0">승인이 완료된 성과입니다. 수정이 필요하면 관리자에게 문의해주세요.</p>')+
+      '<p id="mine-msg" style="color:var(--danger);font-size:12px;min-height:16px;margin:10px 0 0"></p>';
+    document.getElementById('mine-close').onclick = closeAdminModal;
+    const wd = document.getElementById('mine-withdraw');
+    if(wd) wd.onclick = ()=>{
+      if(!confirm('이 성과를 철회할까요? 철회하면 목록에서 사라지고, 다시 등록해야 합니다.')) return;
+      wd.disabled = true;
+      mineCall('myWithdraw', { typeKey, row }).then(()=>{ closeAdminModal(); showToast('철회되었습니다.'); loadMine(); })
+        .catch(er=>{ document.getElementById('mine-msg').textContent = er.message; wd.disabled = false; });
+    };
+  }).catch(err=>{ box.innerHTML = '<p style="color:var(--danger)">'+esc(err.message)+'</p><button class="btn btn-ghost" id="mine-close2">닫기</button>'; document.getElementById('mine-close2').onclick = closeAdminModal; });
 }
 
 /* ============ 초기화 ============ */
