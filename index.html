@@ -223,6 +223,11 @@
         <p>유형을 선택하면 필요한 항목만 표시됩니다.</p>
       </div>
       <div class="card">
+        <div id="edit-banner" style="display:none;background:var(--gold-tint);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.6;">
+          <b>수정 중</b> — <span id="edit-title"></span><br>
+          증빙 파일을 <b>새로 첨부하면 기존 증빙이 교체</b>되고, 첨부하지 않으면 <b>기존 증빙이 그대로 유지</b>됩니다. 저장하면 다시 관리자 확인 대기(확인전) 상태가 됩니다.
+          <button class="btn btn-ghost" id="edit-cancel" style="padding:3px 10px;margin-left:8px;">수정 취소</button>
+        </div>
         <div class="type-tabs" id="type-tabs"></div>
         <div id="form-body"></div>
         <div class="filename-preview" id="fp-box">
@@ -392,6 +397,7 @@ document.getElementById('whoami-switch').addEventListener('click', (e)=>{
   e.preventDefault();
   localStorage.removeItem('cseri_member_studentid');
   adminCode = null; currentMember = null; sessionToken = null; pendingStudentId = '';
+  editTarget = null; document.getElementById('edit-banner').style.display = 'none'; document.getElementById('submit-btn').textContent = '성과 등록';
   try{ localStorage.removeItem('cseri_token'); }catch(e){}
   document.getElementById('gate-code-step').style.display = 'none';
   document.getElementById('gate-confirm').style.display = 'block';
@@ -735,6 +741,7 @@ function renderCert(body){
   nBtn.onclick=()=>{ certYN=false; nBtn.className='on'; yBtn.className=''; updatePreview(); };
   yn.appendChild(yBtn); yn.appendChild(nBtn); ynWrap.appendChild(yn); body.appendChild(ynWrap);
   window.__certYN = ()=>certYN;
+  window.__setCertYN = (v)=>{ if(v===true) yBtn.onclick(); else if(v===false) nBtn.onclick(); };
 
   body.appendChild(sectionTitle('자격증 정보'));
   const g = el('div','field-grid'); body.appendChild(g);
@@ -932,7 +939,7 @@ function renderTypeTabs(){
   const wrap = document.getElementById('type-tabs'); wrap.innerHTML='';
   Object.keys(TYPE_LABELS).forEach(key=>{
     const b = el('button','type-tab'+(key===currentType?' active':''), TYPE_LABELS[key]);
-    b.onclick=()=>{ currentType=key; renderTypeTabs(); renderFields(); };
+    b.onclick=()=>{ if(editTarget){ showToast('수정 중에는 성과 유형을 바꿀 수 없습니다. 수정을 취소한 뒤 선택해주세요.', true); return; } currentType=key; renderTypeTabs(); renderFields(); };
     wrap.appendChild(b);
   });
 }
@@ -1056,21 +1063,86 @@ function buildPayload(){
   return out;
 }
 
+/* ============ 수정 모드 (내 성과 → 수정) ============ */
+let editTarget = null; // { typeKey, row, title }
+
+function snapshotForm(){
+  const snap = { v: 1, type: currentType, controls: {}, nt: {}, biz: null, certYN: null };
+  document.querySelectorAll('#form-body [id^="f-"]').forEach(c=>{
+    if(c.tagName!=='INPUT' && c.tagName!=='SELECT' && c.tagName!=='TEXTAREA') return;
+    snap.controls[c.id] = (c.type==='checkbox') ? !!c.checked : c.value;
+  });
+  Object.keys(nt).forEach(k=>{ snap.nt[k] = JSON.parse(JSON.stringify(nt[k].getData())); });
+  if(document.getElementById('biz-wrap')) snap.biz = collectBiz('biz-wrap');
+  if(currentType==='cert' && window.__certYN) snap.certYN = window.__certYN();
+  return snap;
+}
+
+function restoreForm(snap){
+  currentType = snap.type;
+  renderTypeTabs();
+  renderFields();
+  Object.keys(snap.controls).forEach(id=>{
+    const c = document.getElementById(id); if(!c) return;
+    if(c.type==='checkbox'){ c.checked = !!snap.controls[id]; c.dispatchEvent(new Event('change')); }
+    else { c.value = snap.controls[id]; c.dispatchEvent(new Event('input')); c.dispatchEvent(new Event('change')); }
+  });
+  Object.keys(snap.nt||{}).forEach(k=>{
+    if(!nt[k]) return;
+    const arr = nt[k].getData(); arr.length = 0;
+    snap.nt[k].forEach(x=>arr.push(x));
+    nt[k].render();
+  });
+  if(snap.biz){
+    const wrap = document.getElementById('biz-wrap');
+    if(wrap){
+      wrap.querySelectorAll('.chip input[type=checkbox]').forEach(cb=>{
+        if(snap.biz.checked.indexOf(cb.value)>=0){ cb.checked = true; cb.dispatchEvent(new Event('change')); }
+      });
+      const num = wrap.querySelector('.other-count');
+      if(num && snap.biz.otherCount){ num.value = snap.biz.otherCount; num.dispatchEvent(new Event('input')); }
+    }
+  }
+  if(currentType==='cert' && snap.certYN!==null && window.__setCertYN) window.__setCertYN(snap.certYN);
+  updatePreview();
+}
+
+let editOriginalSnap = null;
+function restoreEditOriginal(){ if(editOriginalSnap){ restoreForm(editOriginalSnap); showToast('저장된 원래 내용으로 되돌렸습니다.'); } }
+function setEditMode(target){
+  editTarget = target;
+  document.getElementById('edit-banner').style.display = target ? 'block' : 'none';
+  document.getElementById('edit-title').textContent = target ? (target.title || '') : '';
+  document.getElementById('submit-btn').textContent = target ? '수정 저장' : '성과 등록';
+}
+document.getElementById('edit-cancel').addEventListener('click', ()=>{
+  if(!confirm('수정을 취소할까요? 입력한 내용은 사라집니다.')) return;
+  setEditMode(null); renderFields();
+});
+
 /* ============ 등록 ============ */
 document.getElementById('submit-btn').addEventListener('click', ()=>{
   if(!currentMember || !sessionToken){ showGate('먼저 로그인해주세요.'); return; }
 
   const payload = buildPayload();
   payload.member = { studentId: currentMember.studentId };
+  payload.snapshot = snapshotForm();
+  if(editTarget) payload.editTarget = { typeKey: editTarget.typeKey, row: editTarget.row };
+  const idleText = editTarget ? '수정 저장' : '성과 등록';
 
+  const pickedUploads = uploads.filter(u => u.file);
   const validUploads = uploads.filter(u => u.file && u.docType);
-  if(validUploads.length===0){
+  if(pickedUploads.length > validUploads.length){
+    showToast('파일을 선택한 칸은 문서 종류도 선택해주세요', true);
+    return;
+  }
+  if(validUploads.length===0 && !editTarget){
     showToast('증빙 파일과 문서 종류를 선택해주세요', true);
     return;
   }
 
   const btn = document.getElementById('submit-btn');
-  btn.disabled = true; btn.textContent = '등록 중...';
+  btn.disabled = true; btn.textContent = editTarget ? '저장 중...' : '등록 중...';
 
   Promise.all(validUploads.map(u =>
     fileToBase64(u.file).then(b64 => ({ docType: u.docType, fileName: u.file.name, base64: b64 }))
@@ -1080,6 +1152,7 @@ document.getElementById('submit-btn').addEventListener('click', ()=>{
     } else {
       payload.uploads = files;
     }
+    const wasEdit = !!editTarget;
 
     if(API_BASE_URL.indexOf('PASTE_YOUR')===0){
       // 배포 URL이 아직 설정 안 된 상태 - 로컬 미리보기로 대체
@@ -1094,23 +1167,28 @@ document.getElementById('submit-btn').addEventListener('click', ()=>{
     apiCall('submitAchievement', { payload, token: sessionToken })
       .then(res=>{
         if(res.success){
-          showToast(`성과가 등록되었습니다 (${res.sheetName} #${res.rowNumber}, 증빙 ${res.evidenceCount}건)`);
-          renderFields();
+          if(wasEdit){
+            showToast('수정되었습니다. 관리자 확인 후 반영됩니다.');
+            setEditMode(null); renderFields(); switchPage('mine');
+          } else {
+            showToast(`성과가 등록되었습니다 (${res.sheetName} #${res.rowNumber}, 증빙 ${res.evidenceCount}건)`);
+            renderFields();
+          }
         } else {
-          showToast('등록 실패: ' + res.error, true);
+          showToast((wasEdit?'수정 실패: ':'등록 실패: ') + res.error, true);
         }
-        btn.disabled = false; btn.textContent = '성과 등록';
+        btn.disabled = false; btn.textContent = idleText;
       })
       .catch(err=>{
-        showToast('등록 실패: ' + err, true);
-        btn.disabled = false; btn.textContent = '성과 등록';
+        showToast('저장 실패: ' + err, true);
+        btn.disabled = false; btn.textContent = idleText;
       });
   }).catch(err=>{
     showToast('파일 변환 중 오류가 발생했습니다: ' + err, true);
-    btn.disabled = false; btn.textContent = '성과 등록';
+    btn.disabled = false; btn.textContent = idleText;
   });
 });
-document.getElementById('reset-btn').addEventListener('click', renderFields);
+document.getElementById('reset-btn').addEventListener('click', ()=>{ if(editTarget){ restoreEditOriginal(); } else { renderFields(); } });
 
 /* ============ 목록 ============ */
 function normalizeBiz(name){ return name.replace(/\s*\(수혜\)$/, ''); }
@@ -1497,6 +1575,7 @@ function openMineDetail(typeKey, row){
       '<li style="margin:4px 0">'+esc(e.docType)+' — '+(e.link?'<a href="'+esc(e.link)+'" target="_blank" rel="noopener">열기 ↗</a>':'<span style="color:var(--ink-muted)">'+esc(e.name)+'</span>')+'</li>').join('')
       : '<li style="color:var(--ink-muted)">첨부된 증빙이 없습니다.</li>';
     const canWithdraw = res.status !== '이상없음';
+    const canEdit = !!res.editable;
     box.innerHTML =
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
         '<h2 style="margin:0;font-size:16px">'+esc(TYPE_NAMES[typeKey])+' · <span class="st '+stClass(res.status)+'">'+esc(res.status)+'</span></h2>'+
@@ -1505,11 +1584,26 @@ function openMineDetail(typeKey, row){
       '<table>'+fields+'</table>'+
       '<h3 style="font-size:13px;margin:0 0 6px">증빙 자료</h3><ul style="margin:0 0 16px;padding-left:18px;font-size:13px">'+ev+'</ul>'+
       (canWithdraw
-        ? '<div style="border-top:1px solid var(--border);padding-top:14px"><p style="font-size:12.5px;color:var(--ink-muted);margin:0 0 8px">내용을 고치려면 이 항목을 철회한 뒤 <b>성과 등록</b>에서 다시 등록해주세요. 철회한 항목은 관리자 검토 대상에서 제외됩니다.</p>'+
+        ? '<div style="border-top:1px solid var(--border);padding-top:14px"><p style="font-size:12.5px;color:var(--ink-muted);margin:0 0 8px">'+
+          (canEdit ? '<b>수정</b>: 입력한 내용을 그대로 불러와 고친 뒤 다시 제출합니다.<br>' : '이 항목은 수정 기능 도입 이전에 등록되어 직접 수정할 수 없습니다. 철회 후 다시 등록해주세요.<br>')+
+          '<b>철회</b>: 이 성과를 취소합니다. 철회한 항목은 관리자 검토 대상에서 제외됩니다.</p>'+
+          (canEdit ? '<button class="btn btn-primary" id="mine-edit" style="margin-right:6px">✏ 수정</button>' : '')+
           '<button class="btn btn-primary" id="mine-withdraw" style="background:var(--danger)">이 성과 철회</button></div>'
         : '<p style="font-size:12.5px;color:var(--ink-muted);border-top:1px solid var(--border);padding-top:12px;margin:0">승인이 완료된 성과입니다. 수정이 필요하면 관리자에게 문의해주세요.</p>')+
       '<p id="mine-msg" style="color:var(--danger);font-size:12px;min-height:16px;margin:10px 0 0"></p>';
     document.getElementById('mine-close').onclick = closeAdminModal;
+    const ed = document.getElementById('mine-edit');
+    if(ed) ed.onclick = ()=>{
+      ed.disabled = true; ed.textContent = '불러오는 중...';
+      mineCall('myEditLoad', { typeKey, row }).then(r2=>{
+        closeAdminModal();
+        switchPage('form');
+        restoreForm(r2.snapshot);
+        editOriginalSnap = r2.snapshot;
+        setEditMode({ typeKey: r2.typeKey, row: r2.row, title: r2.title });
+        window.scrollTo(0,0);
+      }).catch(er=>{ document.getElementById('mine-msg').textContent = er.message; ed.disabled = false; ed.textContent = '✏ 수정'; });
+    };
     const wd = document.getElementById('mine-withdraw');
     if(wd) wd.onclick = ()=>{
       if(!confirm('이 성과를 철회할까요? 철회하면 목록에서 사라지고, 다시 등록해야 합니다.')) return;
