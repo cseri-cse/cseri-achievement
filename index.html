@@ -183,6 +183,23 @@
       <p style="font-size:12px;color:#6B7280;text-align:center;margin:10px 0 0;"><a href="#" id="gate-resend" style="color:#1F4E5F;">코드 다시 받기</a> · <a href="#" id="gate-back" style="color:#6B7280;">학번 다시 입력</a></p>
     </div>
     <p id="gate-error" style="display:none;color:#B3432F;font-size:12px;margin-top:10px;">등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.</p>
+    <details style="margin-top:18px;text-align:left;border-top:1px solid #E1E1DA;padding-top:12px;">
+      <summary style="cursor:pointer;font-size:12.5px;color:#1F4E5F;font-weight:600;list-style:none;text-align:center;">로그인 안내 자세히 보기 ▾</summary>
+      <div style="font-size:12.5px;color:#4B5563;line-height:1.75;margin-top:10px;">
+        <b style="color:#1C1F24;">로그인 방법</b><br>
+        ① 학번을 입력하고 확인을 누릅니다.<br>
+        ② 등록된 본인 메일(학교 메일)로 6자리 인증코드가 발송됩니다.<br>
+        ③ 코드를 입력하면 로그인됩니다. (코드는 10분간 유효)<br>
+        <b style="color:#1C1F24;display:inline-block;margin-top:8px;">로그인 유지</b><br>
+        한 번 인증하면 사용 중인 기기·브라우저에서 <b>30일간</b> 다시 인증하지 않아도 됩니다. 다른 기기나 다른 브라우저에서는 각각 한 번씩 인증해야 합니다.<br>
+        <b style="color:#1C1F24;display:inline-block;margin-top:8px;">공용 컴퓨터에서는</b><br>
+        사용 후 반드시 왼쪽 아래 <b>계정 전환</b>을 눌러 로그아웃해주세요.<br>
+        <b style="color:#1C1F24;display:inline-block;margin-top:8px;">코드가 오지 않을 때</b><br>
+        · 메일함의 스팸함을 확인해주세요.<br>
+        · 1분 뒤 "코드 다시 받기"를 눌러주세요. (1시간에 5번까지)<br>
+        · 계속 오지 않거나 "등록되지 않은 학번"이 나오면 관리자에게 명단의 학번·메일 주소 확인을 요청해주세요.
+      </div>
+    </details>
   </div>
 </div>
 <div id="adm-modal"><div class="box" id="adm-box"></div></div>
@@ -1174,7 +1191,7 @@ const GUIDE_REG = `
 <h3>공통 안내</h3>
 <table class="guide-table">
 <tr><td class="num">1</td><td>각 항목은 빈칸 없이 작성해주세요.</td></tr>
-<tr><td class="num">2</td><td>논문 게재 전, 상장 수령 전 등 당장 작성이 어려운 항목은 등록 후 임시저장하고, 추후 반드시 이어서 채워주세요.</td></tr>
+<tr><td class="num">2</td><td>논문 게재 전, 상장 수령 전 등 증빙이 아직 없는 성과는 <b>자료가 갖춰진 뒤에 등록</b>해주세요. 이미 등록한 성과의 내용을 고쳐야 하면 <b>내 성과</b>에서 해당 항목을 철회한 뒤 다시 등록해주세요.</td></tr>
 <tr><td class="num">3</td><td>본인이 작성한 성과 외 다른 사람의 성과는 임의로 수정할 수 없습니다.</td></tr>
 </table>
 
