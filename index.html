@@ -1411,6 +1411,31 @@ document.getElementById('nav-form').addEventListener('click', ()=>switchPage('fo
 document.getElementById('nav-list').addEventListener('click', ()=>switchPage('list'));
 document.getElementById('nav-guide').addEventListener('click', ()=>switchPage('guide'));
 
+/* ============ 증빙 바로 열기 (다운로드 없이 새 탭에서 보기) ============ */
+function bindEvidenceLinks(callFn, typeKey, row){
+  document.querySelectorAll('#adm-box .ev-open').forEach(a=>{
+    a.onclick = (e)=>{
+      e.preventDefault();
+      openEvidence(callFn, typeKey, row, Number(a.dataset.i), a.dataset.link, a.dataset.name);
+    };
+  });
+}
+function openEvidence(callFn, typeKey, row, idx, fallbackLink, name){
+  const isPdf = /\.pdf$/i.test(name||'');
+  if(!isPdf){ window.open(fallbackLink, '_blank'); return; } // PDF가 아니면 기존처럼 임시 링크
+  const w = window.open('', '_blank'); // 팝업 차단을 피하려고 클릭 즉시 탭을 먼저 연다
+  if(w){ w.document.write('<p style="font-family:sans-serif;padding:24px;color:#555">증빙 파일을 불러오는 중입니다...</p>'); }
+  callFn('', { typeKey, row, index: idx }).then(res=>{
+    if(res.tooLarge || !res.base64){ if(w) w.location.href = fallbackLink; else window.open(fallbackLink,'_blank'); return; }
+    const bin = atob(res.base64); const bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    if(w) w.location.href = url; else window.open(url,'_blank');
+  }).catch(err=>{
+    if(w){ w.document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px;color:#B3432F">불러오지 못했습니다: '+esc(err.message)+'</p>'; }
+  });
+}
+
 /* ============ 관리자 모드 ============ */
 let adminItems = [];
 const TYPE_NAMES = { journal:'저널논문', conference:'학술대회논문', award:'수상', cert:'자격증', intern:'인턴쉽', patent:'특허·저작권·프로그램' };
@@ -1493,7 +1518,7 @@ function openAdminDetail(typeKey, row){
     const fields = res.fields.map(f=>'<tr><td>'+esc(f.label)+'</td><td>'+esc(f.value)+'</td></tr>').join('');
     const ev = res.evidence.length ? res.evidence.map(e=>
       '<li style="margin:4px 0">'+esc(e.docType)+' — '+(e.link
-        ? '<a href="'+esc(e.link)+'" target="_blank" rel="noopener">열기 ↗</a>'
+        ? '<a href="#" class="ev-open" data-i="'+e.index+'" data-link="'+esc(e.link)+'" data-name="'+esc(e.path.split('/').pop())+'">열기 ↗</a>'
         : '<span style="color:var(--danger)">'+esc(e.error||'링크 없음')+'</span>')+
       ' <span style="color:var(--ink-muted);font-size:11px">'+esc(e.path.split('/').pop())+'</span></li>').join('')
       : '<li style="color:var(--ink-muted)">첨부된 증빙이 없습니다.</li>';
@@ -1516,6 +1541,7 @@ function openAdminDetail(typeKey, row){
     const msg = t=>{ document.getElementById('adm-msg').textContent = t; };
     const done = status=>{ item.status = status; renderAdminList(); closeAdminModal(); showToast('처리되었습니다: '+status); };
     document.getElementById('adm-close').onclick = closeAdminModal;
+    bindEvidenceLinks((x,extra)=>adminCall('adminFile', extra), typeKey, row);
     document.getElementById('adm-approve').onclick = e=>{
       e.target.disabled = true;
       adminCall('adminSetStatus',{typeKey,row,status:'이상없음'}).then(()=>done('이상없음')).catch(er=>{ msg(er.message); e.target.disabled=false; });
@@ -1572,7 +1598,7 @@ function openMineDetail(typeKey, row){
   mineCall('myDetail', { typeKey, row }).then(res=>{
     const fields = res.fields.map(f=>'<tr><td>'+esc(f.label)+'</td><td>'+esc(f.value)+'</td></tr>').join('');
     const ev = res.evidence.length ? res.evidence.map(e=>
-      '<li style="margin:4px 0">'+esc(e.docType)+' — '+(e.link?'<a href="'+esc(e.link)+'" target="_blank" rel="noopener">열기 ↗</a>':'<span style="color:var(--ink-muted)">'+esc(e.name)+'</span>')+'</li>').join('')
+      '<li style="margin:4px 0">'+esc(e.docType)+' — '+(e.link?'<a href="#" class="ev-open" data-i="'+e.index+'" data-link="'+esc(e.link)+'" data-name="'+esc(e.name)+'">열기 ↗</a>':'<span style="color:var(--ink-muted)">'+esc(e.name)+'</span>')+'</li>').join('')
       : '<li style="color:var(--ink-muted)">첨부된 증빙이 없습니다.</li>';
     const canWithdraw = res.status !== '이상없음';
     const canEdit = !!res.editable;
@@ -1592,6 +1618,7 @@ function openMineDetail(typeKey, row){
         : '<p style="font-size:12.5px;color:var(--ink-muted);border-top:1px solid var(--border);padding-top:12px;margin:0">승인이 완료된 성과입니다. 수정이 필요하면 관리자에게 문의해주세요.</p>')+
       '<p id="mine-msg" style="color:var(--danger);font-size:12px;min-height:16px;margin:10px 0 0"></p>';
     document.getElementById('mine-close').onclick = closeAdminModal;
+    bindEvidenceLinks((x,extra)=>mineCall('myFile', extra), typeKey, row);
     const ed = document.getElementById('mine-edit');
     if(ed) ed.onclick = ()=>{
       ed.disabled = true; ed.textContent = '불러오는 중...';
