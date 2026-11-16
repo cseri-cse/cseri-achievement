@@ -173,9 +173,15 @@
 <div id="identify-gate" style="position:fixed;inset:0;background:#F6F6F2;z-index:50;display:flex;align-items:center;justify-content:center;">
   <div style="background:#fff;border:1px solid #E1E1DA;border-radius:12px;padding:36px 34px;max-width:360px;width:90%;text-align:center;">
     <div style="font-family:'Noto Serif KR',serif;font-weight:700;font-size:18px;color:#1F4E5F;margin-bottom:6px;">CSERI 성과관리</div>
-    <p style="font-size:13px;color:#6B7280;margin:0 0 20px;">등록된 학번을 입력해주세요.</p>
+    <p style="font-size:13px;color:#6B7280;margin:0 0 20px;">학번을 입력하면 등록된 본인 메일로 인증코드를 보내드립니다.</p>
     <input type="text" id="gate-email" placeholder="학번을 입력해주세요" style="width:100%;padding:10px 12px;border:1px solid #E1E1DA;border-radius:7px;font-size:13.5px;margin-bottom:10px;">
     <button id="gate-confirm" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:11px;background:#1F4E5F;color:#fff;border-radius:8px;font-size:13.5px;font-weight:600;text-align:center;">확인</button>
+    <div id="gate-code-step" style="display:none;margin-top:14px;text-align:left;">
+      <p id="gate-code-msg" style="font-size:12.5px;color:#1C1F24;line-height:1.6;margin:0 0 10px;"></p>
+      <input type="text" id="gate-code" inputmode="numeric" maxlength="6" placeholder="인증코드 6자리" style="width:100%;padding:10px 12px;border:1px solid #E1E1DA;border-radius:7px;font-size:15px;letter-spacing:4px;text-align:center;margin-bottom:10px;box-sizing:border-box;">
+      <button id="gate-code-confirm" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:11px;background:#1F4E5F;color:#fff;border-radius:8px;font-size:13.5px;font-weight:600;text-align:center;">로그인</button>
+      <p style="font-size:12px;color:#6B7280;text-align:center;margin:10px 0 0;"><a href="#" id="gate-resend" style="color:#1F4E5F;">코드 다시 받기</a> · <a href="#" id="gate-back" style="color:#6B7280;">학번 다시 입력</a></p>
+    </div>
     <p id="gate-error" style="display:none;color:#B3432F;font-size:12px;margin-top:10px;">등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.</p>
   </div>
 </div>
@@ -271,6 +277,8 @@ const DEGREES = ['학사과정','석사과정','박사과정','박사후연구�
 // 실제 /exec 주소는 config.js 에 한 번만 적어두면 됩니다. (index.html을 새로 덮어써도 유지)
 const API_BASE_URL = window.CSERI_API_URL || 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE';
 let currentMember = null; // { name, email, degree }
+let sessionToken = null; // 로그인 토큰: 이 기기의 localStorage에 30일간 보관 (계정 전환 시 삭제)
+let pendingStudentId = '';
 let adminCode = null;     // 관리자 번호: 메모리에만 보관 (저장소·localStorage에 절대 저장 안 함)
 function isAdmin(){ return !!adminCode; }
 
@@ -296,8 +304,11 @@ function applyMember(member, typedCode){
   document.getElementById('whoami-name').textContent = member.name;
   document.getElementById('whoami-degree').textContent = member.degree || '';
   document.getElementById('whoami-email').textContent = member.admin ? '관리자 모드' : member.studentId;
-  if(member.admin){ localStorage.removeItem('cseri_member_studentid'); }
-  else { localStorage.setItem('cseri_member_studentid', member.studentId); }
+  localStorage.removeItem('cseri_member_studentid'); // 예전 방식 잔여값 정리
+  sessionToken = member.admin ? null : (member.token || null);
+  try{ if(sessionToken) localStorage.setItem('cseri_token', sessionToken); else localStorage.removeItem('cseri_token'); }catch(e){}
+  document.getElementById('gate-code-step').style.display = 'none';
+  document.getElementById('gate-confirm').style.display = 'block';
   document.getElementById('nav-admin').style.display = member.admin ? '' : 'none';
   document.getElementById('nav-form').style.display = member.admin ? 'none' : '';
   document.getElementById('gate-email').value = '';
@@ -305,19 +316,59 @@ function applyMember(member, typedCode){
   switchPage(member.admin ? 'admin' : 'form');
 }
 
+function gateMsg(t){ showGate(t); }
+function requestCodeFlow(studentId, isResend){
+  apiCall('verifyMember', { studentId }).then(res=>{
+    if(res.success === false){ gateMsg(res.error || '요청에 실패했습니다.'); return; }
+    if(res.found && res.admin){ applyMember(res, studentId); return; }
+    if(res.sent){
+      pendingStudentId = studentId;
+      document.getElementById('gate-error').style.display = 'none';
+      document.getElementById('gate-confirm').style.display = 'none';
+      document.getElementById('gate-email').style.display = 'none';
+      document.getElementById('gate-code-step').style.display = 'block';
+      document.getElementById('gate-code-msg').innerHTML = '<b>'+esc(res.maskedEmail)+'</b> 로 인증코드를 보냈습니다.<br>메일함(스팸함 포함)에서 6자리 코드를 확인해 입력해주세요. (10분간 유효)';
+      document.getElementById('gate-code').value = '';
+      document.getElementById('gate-code').focus();
+      return;
+    }
+    if(res.locked){ gateMsg('시도 횟수가 많아 잠시 잠겼습니다. 10분 뒤 다시 시도해주세요.'); return; }
+    gateMsg('등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.');
+  }).catch(()=> gateMsg('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.'));
+}
 document.getElementById('gate-confirm').addEventListener('click', ()=>{
   const studentId = document.getElementById('gate-email').value.trim();
   if(!studentId){ showGate('학번을 입력해주세요.'); return; }
-  apiCall('verifyMember', { studentId }).then(res=>{
-    if(res.found){ applyMember(res, studentId); }
-    else if(res.locked){ showGate('시도 횟수가 많아 잠시 잠겼습니다. 10분 뒤 다시 시도해주세요.'); }
-    else { showGate('등록되지 않은 학번입니다. 관리자에게 등록을 요청해주세요.'); }
-  }).catch(()=> showGate('서버에 연결할 수 없습니다. API_BASE_URL 설정을 확인해주세요.'));
+  const btn = document.getElementById('gate-confirm'); btn.textContent = '확인 중...';
+  requestCodeFlow(studentId);
+  setTimeout(()=>{ btn.textContent = '확인'; }, 1500);
+});
+document.getElementById('gate-email').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('gate-confirm').click(); });
+document.getElementById('gate-code-confirm').addEventListener('click', ()=>{
+  const code = document.getElementById('gate-code').value.trim();
+  if(!/^\d{6}$/.test(code)){ showGate('인증코드 6자리를 입력해주세요.'); return; }
+  apiCall('verifyCode', { studentId: pendingStudentId, code }).then(res=>{
+    if(res.success === false){ showGate(res.error || '인증에 실패했습니다.'); return; }
+    if(res.found){ document.getElementById('gate-email').style.display = ''; applyMember(res); }
+  }).catch(()=> showGate('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.'));
+});
+document.getElementById('gate-code').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('gate-code-confirm').click(); });
+document.getElementById('gate-resend').addEventListener('click', e=>{ e.preventDefault(); if(pendingStudentId) requestCodeFlow(pendingStudentId, true); });
+document.getElementById('gate-back').addEventListener('click', e=>{
+  e.preventDefault(); pendingStudentId = '';
+  document.getElementById('gate-code-step').style.display = 'none';
+  document.getElementById('gate-confirm').style.display = 'block';
+  document.getElementById('gate-email').style.display = '';
+  document.getElementById('gate-error').style.display = 'none';
 });
 document.getElementById('whoami-switch').addEventListener('click', (e)=>{
   e.preventDefault();
   localStorage.removeItem('cseri_member_studentid');
-  adminCode = null; currentMember = null;
+  adminCode = null; currentMember = null; sessionToken = null; pendingStudentId = '';
+  try{ localStorage.removeItem('cseri_token'); }catch(e){}
+  document.getElementById('gate-code-step').style.display = 'none';
+  document.getElementById('gate-confirm').style.display = 'block';
+  document.getElementById('gate-email').style.display = '';
   document.getElementById('nav-admin').style.display = 'none';
   document.getElementById('nav-form').style.display = '';
   document.getElementById('gate-email').value = '';
@@ -325,11 +376,18 @@ document.getElementById('whoami-switch').addEventListener('click', (e)=>{
 });
 document.getElementById('brand-home').addEventListener('click', ()=> switchPage(isAdmin() ? 'admin' : 'form'));
 
-// 저장된 학번이 있으면 입력창에 채워만 두고, 실제 로그인은 반드시 "확인" 버튼을 눌러야 진행됩니다.
+// 이 기기에서 인증한 적이 있으면(30일 이내) 토큰으로 자동 복원합니다. 계정 전환을 누르면 삭제됩니다.
 (function initGate(){
-  const saved = localStorage.getItem('cseri_member_studentid');
-  if(saved){ document.getElementById('gate-email').value = saved; }
+  localStorage.removeItem('cseri_member_studentid');
+  let tk = null;
+  try{ tk = localStorage.getItem('cseri_token'); }catch(e){}
   showGate();
+  if(tk){
+    apiCall('resumeSession', { token: tk }).then(res=>{
+      if(res && res.found){ applyMember(res); }
+      else { try{ localStorage.removeItem('cseri_token'); }catch(e){} }
+    }).catch(()=>{});
+  }
 })();
 
 /* ============ 상태 ============ */
@@ -972,7 +1030,7 @@ function buildPayload(){
 
 /* ============ 등록 ============ */
 document.getElementById('submit-btn').addEventListener('click', ()=>{
-  if(!currentMember){ showGate('먼저 이메일을 확인해주세요.'); return; }
+  if(!currentMember || !sessionToken){ showGate('먼저 로그인해주세요.'); return; }
 
   const payload = buildPayload();
   payload.member = { studentId: currentMember.studentId };
@@ -1005,7 +1063,7 @@ document.getElementById('submit-btn').addEventListener('click', ()=>{
       return;
     }
 
-    apiCall('submitAchievement', { payload })
+    apiCall('submitAchievement', { payload, token: sessionToken })
       .then(res=>{
         if(res.success){
           showToast(`성과가 등록되었습니다 (${res.sheetName} #${res.rowNumber}, 증빙 ${res.evidenceCount}건)`);
